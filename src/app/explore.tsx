@@ -69,7 +69,7 @@ export default function StatsScreen() {
       paddingBottom: insets.bottom,
     },
     web: {
-      paddingTop: Spacing.six,
+      paddingTop: 80,
       paddingBottom: Spacing.four,
     },
   });
@@ -112,7 +112,7 @@ export default function StatsScreen() {
 
         {/* Category Performance Bars */}
         <View style={styles.section}>
-          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Category Mastery</ThemedText>
+          <ThemedText type="smallBold" style={styles.sectionTitle}>Category Mastery</ThemedText>
           <ThemedView type="backgroundElement" style={styles.cardBlock}>
             {CATEGORIES.map((category) => {
               const progress = getCategoryProgress(category.id);
@@ -140,7 +140,7 @@ export default function StatsScreen() {
 
         {/* Unlocked Achievements list */}
         <View style={styles.section}>
-          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Unlocked Achievements</ThemedText>
+          <ThemedText type="smallBold" style={styles.sectionTitle}>Unlocked Achievements</ThemedText>
           <View style={styles.achievementsGrid}>
             {achievements.map((ach) => (
               <ThemedView 
@@ -166,7 +166,7 @@ export default function StatsScreen() {
 
         {/* LinkedIn Share Button */}
         <Pressable onPress={handleShare} style={styles.shareBtn}>
-          <ThemedText type="defaultSemiBold" style={styles.shareBtnText}>
+          <ThemedText type="smallBold" style={styles.shareBtnText}>
             Share achievements on LinkedIn 🚀
           </ThemedText>
         </Pressable>

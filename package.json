@@ -3,7 +3,9 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@expo-google-fonts/vt323": "^0.4.1",
     "@expo/ui": "~57.0.7",
+    "@expo/vector-icons": "^15.1.1",
     "expo": "~57.0.7",
     "expo-constants": "~57.0.6",
     "expo-device": "~57.0.1",

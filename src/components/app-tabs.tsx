@@ -1,32 +1,130 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useColorScheme } from 'react-native';
+import React from 'react';
+import { View, StyleSheet, Pressable, Platform } from 'react-native';
+import { FontAwesome5, FontAwesome } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
-import { Colors } from '@/constants/theme';
+import { ThemedText } from './themed-text';
+import { Colors, Spacing } from '@/constants/theme';
 
-export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+export default function AppTabs({ state, descriptors, navigation }: BottomTabBarProps) {
+  const router = useRouter();
 
   return (
-    <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/home.png')}
-          renderingMode="template"
+    <View style={styles.tabBarContainer}>
+      <View style={styles.tabBarInner}>
+        
+        {/* Hub Tab */}
+        <TabButton 
+          icon="home" 
+          label="Hub" 
+          isFocused={state.index === 0} 
+          onPress={() => navigation.navigate('index')} 
         />
-      </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="explore">
-        <NativeTabs.Trigger.Label>Stats</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon
-          src={require('@/assets/images/tabIcons/explore.png')}
-          renderingMode="template"
+        {/* Learn Tab (Dummy) */}
+        <TabButton 
+          icon="book" 
+          label="Learn" 
+          isFocused={false} 
+          onPress={() => {}} 
         />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+
+        {/* Center Glowing Code Button */}
+        <Pressable 
+          style={styles.centerButtonWrapper}
+          onPress={() => router.push('/quiz?category=mock')}
+        >
+          <View style={styles.centerButtonGlow}>
+            <FontAwesome5 name="code" size={24} color="#000000" />
+          </View>
+          <ThemedText style={styles.centerButtonLabel}>Code</ThemedText>
+        </Pressable>
+
+        {/* Jobs Tab (Dummy) */}
+        <TabButton 
+          icon="briefcase" 
+          label="Jobs" 
+          isFocused={false} 
+          onPress={() => {}} 
+        />
+
+        {/* Stats Tab */}
+        <TabButton 
+          icon="bar-chart" 
+          label="Stats" 
+          isFocused={state.index === 1} 
+          onPress={() => navigation.navigate('explore')} 
+        />
+
+      </View>
+    </View>
   );
 }
+
+function TabButton({ isFocused, icon, label, onPress }: { isFocused: boolean, icon: string, label: string, onPress: () => void }) {
+  const color = isFocused ? Colors.dark.primary : Colors.dark.textSecondary;
+  return (
+    <Pressable onPress={onPress} style={styles.tabButton}>
+      <FontAwesome name={icon as any} size={22} color={color} style={{ marginBottom: 4 }} />
+      <ThemedText style={[styles.tabLabel, { color }]}>
+        {label}
+      </ThemedText>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  tabBarContainer: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor: '#0A0A0A',
+    borderTopWidth: 1,
+    borderTopColor: '#222222',
+    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+    paddingTop: 10,
+  },
+  tabBarInner: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.two,
+  },
+  tabButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  centerButtonWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginTop: -35,
+  },
+  centerButtonGlow: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.dark.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: Colors.dark.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 15,
+    elevation: 10,
+    borderWidth: 2,
+    borderColor: '#000',
+    marginBottom: 4,
+  },
+  centerButtonLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#DDDDDD',
+  }
+});

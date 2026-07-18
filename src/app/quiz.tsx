@@ -116,7 +116,7 @@ export default function QuizScreen() {
               </View>
 
               <Pressable style={styles.actionButton} onPress={handleFinish}>
-                <ThemedText type="defaultSemiBold" style={styles.actionButtonText}>
+                <ThemedText type="smallBold" style={styles.actionButtonText}>
                   Back to Dashboard
                 </ThemedText>
               </Pressable>
@@ -128,9 +128,11 @@ export default function QuizScreen() {
     );
   }
 
+  const webPadding = Platform.select({ web: { paddingTop: 80 }, default: {} });
+
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={[styles.safeArea, webPadding]} edges={['top', 'left', 'right']}>
         
         {/* Quiz Progress Header */}
         <View style={styles.quizHeader}>
@@ -145,7 +147,11 @@ export default function QuizScreen() {
           </ThemedText>
         </View>
 
-        <ScrollView contentContainerStyle={styles.quizScrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          contentContainerStyle={styles.quizScrollContent}
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Question Card Header */}
           <View style={styles.questionCardHeader}>
             <View style={styles.metaRow}>
@@ -202,7 +208,7 @@ export default function QuizScreen() {
                 <ThemedText style={styles.explanationEmoji}>
                   {currentQuestion.options.find((o) => o.id === selectedOptionId)?.isCorrect ? '🎉' : '❌'}
                 </ThemedText>
-                <ThemedText type="defaultSemiBold" style={styles.explanationTitle}>
+                <ThemedText type="smallBold" style={styles.explanationTitle}>
                   {currentQuestion.options.find((o) => o.id === selectedOptionId)?.isCorrect ? 'Correct!' : 'Incorrect'}
                 </ThemedText>
               </View>
@@ -210,7 +216,7 @@ export default function QuizScreen() {
                 {currentQuestion.explanation}
               </ThemedText>
               <Pressable style={styles.nextButton} onPress={handleNext}>
-                <ThemedText type="defaultSemiBold" style={styles.nextButtonText}>
+                <ThemedText type="smallBold" style={styles.nextButtonText}>
                   {currentIndex === quizQuestions.length - 1 ? 'Finish Quiz' : 'Next Question →'}
                 </ThemedText>
               </Pressable>

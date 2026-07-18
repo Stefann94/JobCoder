@@ -1,18 +1,37 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { useEffect } from 'react';
+import { Tabs } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { useFonts, VT323_400Regular } from '@expo-google-fonts/vt323';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
+import { Colors } from '@/constants/theme';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const [loaded] = useFonts({
+    VT323_400Regular,
+  });
+
+  useEffect(() => {
+    if (loaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded]);
+
+  if (!loaded) return null;
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <>
       <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+      <Tabs 
+        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: Colors.dark.background } }}
+        tabBar={(props) => <AppTabs {...props} />}
+      >
+        <Tabs.Screen name="index" />
+        <Tabs.Screen name="explore" />
+      </Tabs>
+    </>
   );
 }

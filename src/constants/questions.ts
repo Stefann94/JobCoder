@@ -15,39 +15,39 @@ export interface Question {
 
 export const CATEGORIES = [
   {
-    id: 'algorithms',
-    title: 'Algorithms & Data Structures',
-    icon: 'code-braces',
-    color: '#10B981', // Mint Green
-    description: 'Arrays, Lists, Trees, Big O notation and problem solving.',
-  },
-  {
-    id: 'frontend',
-    title: 'Frontend Development',
-    icon: 'monitor',
-    color: '#3B82F6', // Blue
-    description: 'React, CSS, HTML, JS concepts, Web Vitals and DOM.',
-  },
-  {
     id: 'backend',
-    title: 'Backend Development',
+    title: 'Backend Architecture',
     icon: 'server',
-    color: '#8B5CF6', // Purple
+    color: '#8B5CF6',
     description: 'APIs, Databases, Caching, Node.js, and scaling backend code.',
   },
   {
+    id: 'frontend',
+    title: 'Frontend Logic',
+    icon: 'monitor',
+    color: '#F59E0B', 
+    description: 'React, JS concepts, Web Vitals and DOM manipulation.',
+  },
+  {
     id: 'system-design',
-    title: 'System Design',
-    icon: 'sitemap',
-    color: '#F59E0B', // Amber
-    description: 'Microservices, load balancing, message queues, and databases.',
+    title: 'Data Manipulation',
+    icon: 'database',
+    color: '#3B82F6', 
+    description: 'SQL, NoSQL, data pipelines and query optimization.',
   },
   {
     id: 'hr-behavioral',
-    title: 'Behavioral & HR',
-    icon: 'account-group',
-    color: '#EC4899', // Pink
-    description: 'STAR method, conflict resolution, and career path questions.',
+    title: 'Structure & Style',
+    icon: 'language-html5',
+    color: '#EF4444', 
+    description: 'HTML5, CSS3, accessibility, and responsive design.',
+  },
+  {
+    id: 'algorithms',
+    title: 'Algorithms & Data Structs',
+    icon: 'code-braces',
+    color: '#EF4444', 
+    description: 'Arrays, Lists, Trees, Big O notation and problem solving.',
   },
 ] as const;
 
