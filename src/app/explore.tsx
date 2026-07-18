@@ -1,29 +1,71 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, ScrollView, View, Pressable, Platform, Share } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ExternalLink } from '@/components/external-link';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { CATEGORIES } from '@/constants/questions';
 
-export default function TabTwoScreen() {
+interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  emoji: string;
+  unlocked: boolean;
+}
+
+export default function StatsScreen() {
   const safeAreaInsets = useSafeAreaInsets();
   const insets = {
     ...safeAreaInsets,
     bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
   };
-  const theme = useTheme();
+
+  const [totalXp] = useState(450);
+  const [streak] = useState(5);
+  const [completedQuizzes] = useState(8);
+
+  const achievements: Achievement[] = [
+    { id: 'ach-1', title: 'First Steps', description: 'Complete your first practice quiz', emoji: '🌱', unlocked: true },
+    { id: 'ach-2', title: 'Clean Coder', description: 'Answer 5 Backend questions correctly', emoji: '🧹', unlocked: true },
+    { id: 'ach-3', title: 'Algo Master', description: 'Score 100% on any Algorithms quiz', emoji: '⚔️', unlocked: true },
+    { id: 'ach-4', title: 'System Designer', description: 'Complete your first System Design mock', emoji: '🏗️', unlocked: false },
+    { id: 'ach-5', title: 'SOLID Practitioner', description: 'Maintain a 5-day active study streak', emoji: '💎', unlocked: true },
+    { id: 'ach-6', title: 'FAANG Ready', description: 'Reach 1000 total XP', emoji: '👑', unlocked: false },
+  ];
+
+  const handleShare = async () => {
+    try {
+      const message = `🚀 I'm preparing for coding interviews on JobCoder! Just hit a ${streak}-day streak and earned ${totalXp} XP. Wish me luck! 💻🎯 #JobCoder #Career`;
+      if (Platform.OS === 'web') {
+        navigator.clipboard.writeText(message);
+        alert('Copied accomplishment post to clipboard!');
+      } else {
+        await Share.share({ message });
+      }
+    } catch (error) {
+      console.log('Error sharing achievements:', error);
+    }
+  };
+
+  // Mock progress numbers for different tracks
+  const getCategoryProgress = (id: string) => {
+    switch (id) {
+      case 'algorithms': return 0.66; // 2/3 questions
+      case 'frontend': return 0.33;  // 1/3 questions
+      case 'backend': return 1.0;    // 3/3 questions
+      case 'system-design': return 0.0;
+      case 'hr-behavioral': return 0.66;
+      default: return 0.5;
+    }
+  };
 
   const contentPlatformStyle = Platform.select({
     android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
+      paddingTop: safeAreaInsets.top + Spacing.three,
+      paddingLeft: safeAreaInsets.left,
+      paddingRight: safeAreaInsets.right,
       paddingBottom: insets.bottom,
     },
     web: {
@@ -34,92 +76,101 @@ export default function TabTwoScreen() {
 
   return (
     <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
+      style={styles.scrollView}
       contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
+      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}
+      showsVerticalScrollIndicator={false}
+    >
       <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
+        
+        {/* Title */}
+        <View style={styles.header}>
+          <ThemedText type="subtitle" style={styles.title}>Your Career Progress</ThemedText>
+          <ThemedText type="small" style={styles.subtitle}>Track your path to getting hired</ThemedText>
+        </View>
 
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
+        {/* Stats Grid Widget */}
+        <View style={styles.statsRow}>
+          <ThemedView type="backgroundElement" style={styles.statBox}>
+            <ThemedText style={styles.statEmoji}>✨</ThemedText>
+            <ThemedText type="subtitle" style={styles.statNum}>{totalXp}</ThemedText>
+            <ThemedText type="small" style={styles.statLabel}>Total XP</ThemedText>
+          </ThemedView>
+
+          <ThemedView type="backgroundElement" style={styles.statBox}>
+            <ThemedText style={styles.statEmoji}>🔥</ThemedText>
+            <ThemedText type="subtitle" style={styles.statNum}>{streak}</ThemedText>
+            <ThemedText type="small" style={styles.statLabel}>Day Streak</ThemedText>
+          </ThemedView>
+
+          <ThemedView type="backgroundElement" style={styles.statBox}>
+            <ThemedText style={styles.statEmoji}>📝</ThemedText>
+            <ThemedText type="subtitle" style={styles.statNum}>{completedQuizzes}</ThemedText>
+            <ThemedText type="small" style={styles.statLabel}>Quizzes Done</ThemedText>
+          </ThemedView>
+        </View>
+
+        {/* Category Performance Bars */}
+        <View style={styles.section}>
+          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Category Mastery</ThemedText>
+          <ThemedView type="backgroundElement" style={styles.cardBlock}>
+            {CATEGORIES.map((category) => {
+              const progress = getCategoryProgress(category.id);
+              const percentage = Math.round(progress * 100);
+
+              return (
+                <View key={category.id} style={styles.progressRow}>
+                  <View style={styles.progressLabelRow}>
+                    <ThemedText type="smallBold">{category.title}</ThemedText>
+                    <ThemedText type="small" style={{ color: category.color }}>{percentage}%</ThemedText>
+                  </View>
+                  <View style={styles.barBackground}>
+                    <View 
+                      style={[
+                        styles.barFill, 
+                        { width: `${percentage}%`, backgroundColor: category.color }
+                      ]} 
+                    />
+                  </View>
+                </View>
+              );
+            })}
+          </ThemedView>
+        </View>
+
+        {/* Unlocked Achievements list */}
+        <View style={styles.section}>
+          <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Unlocked Achievements</ThemedText>
+          <View style={styles.achievementsGrid}>
+            {achievements.map((ach) => (
+              <ThemedView 
+                key={ach.id} 
+                type="backgroundElement" 
+                style={[styles.achievementCard, !ach.unlocked && styles.lockedAchievement]}
+              >
+                <View style={[styles.badgeIconBg, !ach.unlocked && styles.lockedIconBg]}>
+                  <ThemedText style={styles.badgeEmoji}>{ach.unlocked ? ach.emoji : '🔒'}</ThemedText>
+                </View>
+                <View style={styles.achievementText}>
+                  <ThemedText type="smallBold" style={[styles.achTitle, !ach.unlocked && styles.lockedText]}>
+                    {ach.title}
+                  </ThemedText>
+                  <ThemedText type="small" style={[styles.achDesc, !ach.unlocked && styles.lockedText]}>
+                    {ach.description}
+                  </ThemedText>
+                </View>
               </ThemedView>
-            </Pressable>
-          </ExternalLink>
-        </ThemedView>
+            ))}
+          </View>
+        </View>
 
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+        {/* LinkedIn Share Button */}
+        <Pressable onPress={handleShare} style={styles.shareBtn}>
+          <ThemedText type="defaultSemiBold" style={styles.shareBtnText}>
+            Share achievements on LinkedIn 🚀
+          </ThemedText>
+        </Pressable>
 
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
-              />
-            </ThemedView>
-          </Collapsible>
-
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
       </ThemedView>
     </ScrollView>
   );
@@ -132,49 +183,130 @@ const styles = StyleSheet.create({
   contentContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
   },
   container: {
     maxWidth: MaxContentWidth,
     flexGrow: 1,
-  },
-  titleContainer: {
-    gap: Spacing.three,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
-    gap: Spacing.one,
-    alignItems: 'center',
-  },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-  },
-  collapsibleContent: {
-    alignItems: 'center',
-  },
-  imageTutorial: {
+    gap: Spacing.four,
     width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
+  },
+  header: {
+    gap: Spacing.half,
     marginTop: Spacing.two,
   },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
+  title: {
+    fontWeight: '800',
+  },
+  subtitle: {
+    opacity: 0.5,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    justifyContent: 'space-between',
+  },
+  statBox: {
+    flex: 1,
+    paddingVertical: Spacing.three,
+    alignItems: 'center',
+    borderRadius: Spacing.three,
+    borderWidth: 1,
+    borderColor: '#2E3135',
+  },
+  statEmoji: {
+    fontSize: 22,
+    marginBottom: Spacing.one,
+  },
+  statNum: {
+    fontWeight: '800',
+  },
+  statLabel: {
+    opacity: 0.5,
+    fontSize: 11,
+  },
+  section: {
+    gap: Spacing.two,
+  },
+  sectionTitle: {
+    fontWeight: '700',
+  },
+  cardBlock: {
+    padding: Spacing.four,
+    borderRadius: Spacing.four,
+    gap: Spacing.three,
+    borderWidth: 1,
+    borderColor: '#2E3135',
+  },
+  progressRow: {
+    gap: Spacing.one,
+  },
+  progressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  barBackground: {
+    height: 8,
+    backgroundColor: '#2E3135',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  achievementsGrid: {
+    gap: Spacing.two,
+  },
+  achievementCard: {
+    flexDirection: 'row',
+    padding: Spacing.three,
+    borderRadius: Spacing.three,
+    borderWidth: 1,
+    borderColor: '#2E3135',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  lockedAchievement: {
+    borderColor: '#212225',
+    opacity: 0.4,
+  },
+  badgeIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#3B82F620',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lockedIconBg: {
+    backgroundColor: '#212225',
+  },
+  badgeEmoji: {
+    fontSize: 20,
+  },
+  achievementText: {
+    flex: 1,
+    gap: Spacing.half,
+  },
+  achTitle: {
+    fontWeight: '600',
+  },
+  achDesc: {
+    opacity: 0.6,
+  },
+  lockedText: {
+    opacity: 0.8,
+  },
+  shareBtn: {
+    backgroundColor: '#0077B5', // LinkedIn Blue color
+    paddingVertical: Spacing.three,
+    borderRadius: Spacing.three,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.six,
+  },
+  shareBtnText: {
+    color: '#ffffff',
   },
 });
