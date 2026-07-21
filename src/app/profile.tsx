@@ -1,0 +1,763 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Modal, FlatList, Dimensions } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/providers/AuthProvider';
+import { Colors } from '@/constants/theme';
+import { fetchUserProfile, updateUserProfile, uploadAvatarImage, UserProfile } from '@/lib/api';
+import HackerSelect from '@/components/hacker-select';
+import AvatarRenderer from '@/components/avatar-renderer';
+
+WebBrowser.maybeCompleteAuthSession();
+
+// Google OAuth config
+const GOOGLE_CLIENT_ID = '738118505432-9cepk9gmep4scfcd8lvg1kummaa18f8a.apps.googleusercontent.com';
+const redirectUri = AuthSession.makeRedirectUri({ scheme: 'jobcoder' });
+
+const SPECIALIZATIONS = ['Frontend Developer', 'Backend Ninja', 'Fullstack Wizard', 'UI/UX Designer', 'Cyber Security', 'QA Tester', 'Data Scientist', 'DevOps Ops', 'Mobile Dev'];
+const LANGUAGES = ['JavaScript', 'TypeScript', 'Python', 'Java', 'C++', 'C#', 'Go', 'Rust', 'Ruby', 'PHP', 'Swift', 'Kotlin'];
+const GOALS = ['Seeking First Job', 'Prepping for Big Tech (FAANG)', 'Career Change', 'Looking for Promotion', 'Just for Fun'];
+const DAILY_TIMES = ['< 1 hour (Casual)', '1-3 hours (Dedicated)', '4+ hours (Hardcore)'];
+const WORK_STYLES = ['100% Remote', 'Hybrid', 'Office', 'Digital Nomad'];
+const HACKER_ICONS = ['user-ninja', 'user-astronaut', 'user-secret', 'robot', 'ghost', 'skull', 'dragon', 'spider', 'mask', 'cat', 'terminal', 'bug'];
+
+export default function ProfileScreen() {
+  const router = useRouter();
+  const { user, isAuthenticated, isLoading, refreshProfile } = useAuth();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Profile States
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Avatar handling
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+
+  const [editForm, setEditForm] = useState<Partial<UserProfile>>({
+    username: '', title: '', main_language: '', goal: '', daily_time: '', work_style: '', github_link: '', avatar_url: ''
+  });
+
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Reset scroll position and edit mode every time this screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      setIsEditing(false);
+      setShowAvatarModal(false);
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }, [])
+  );
+
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile(user.id).then((data) => {
+        if (data) {
+          setProfile(data);
+          setEditForm(data);
+        } else {
+          setEditForm({
+            username: user.email?.split('@')[0] || 'Hacker',
+            title: 'Junior Dev',
+            main_language: 'JavaScript',
+            goal: '', daily_time: '', work_style: '', github_link: '', avatar_url: ''
+          });
+        }
+      });
+    }
+  }, [user]);
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const newProfile = await updateUserProfile({ id: user.id, ...editForm });
+      setProfile(newProfile as UserProfile);
+      await refreshProfile();
+      setIsEditing(false);
+    } catch (e: any) {
+      Alert.alert('Error', 'Could not save profile. ' + e.message);
+    }
+    setIsSaving(false);
+  };
+
+  const handlePickImage = async () => {
+    if (!user) return;
+    
+    setShowAvatarModal(false); // Inchide modalul cand alegem sa deschidem galeria
+
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.granted === false) {
+      Alert.alert('Error', 'We need access to your photos to change the avatar!');
+      return;
+    }
+
+    const pickerResult = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!pickerResult.canceled && pickerResult.assets[0].uri) {
+      setIsUploadingImage(true);
+      const publicUrl = await uploadAvatarImage(user.id, pickerResult.assets[0].uri);
+      if (publicUrl) {
+        setEditForm(p => ({ ...p, avatar_url: publicUrl }));
+        await updateUserProfile({ id: user.id, avatar_url: publicUrl });
+        await refreshProfile();
+      } else {
+        Alert.alert('Error', 'Could not upload image to server.');
+      }
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handlePickIcon = async (iconName: string) => {
+    if (!user) return;
+    const finalUrl = `icon:${iconName}`;
+    setEditForm(p => ({ ...p, avatar_url: finalUrl }));
+    setShowAvatarModal(false);
+    // Salveaza direct pt sincronizare instant
+    await updateUserProfile({ id: user.id, avatar_url: finalUrl });
+    await refreshProfile();
+  };
+
+  const handleEmailLogin = async () => {
+    if (!email || !password) return Alert.alert('Error', 'Enter email and password!');
+    setIsLoggingIn(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) Alert.alert('Login Error', error.message);
+    setIsLoggingIn(false);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setIsLoggingIn(true);
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUri,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (error || !data.url) {
+        Alert.alert('Error', error?.message || 'Could not start Google login.');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+
+      if (result.type === 'success') {
+        const url = result.url;
+        // Extract tokens from the redirect URL hash
+        const params = new URLSearchParams(url.split('#')[1]);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+
+        if (accessToken && refreshToken) {
+          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        }
+      }
+      setIsLoggingIn(false);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+      setIsLoggingIn(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color={Colors.dark.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+          <Ionicons name="close" size={28} color={Colors.dark.text} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+        {!isAuthenticated ? (
+          // === INTERFAȚA DE LOGIN (GUEST) ===
+          <View style={styles.content}>
+            <Text style={styles.title}>ACCESS_RESTRICTED</Text>
+            <Text style={styles.subtitle}>// Identify yourself to the mainframe.</Text>
+
+            <View style={styles.formContainer}>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Hacker Email"
+                placeholderTextColor="#555"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+              <TextInput
+                style={styles.textInput}
+                placeholder="Password (Encrypted)"
+                placeholderTextColor="#555"
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+              />
+
+              <TouchableOpacity style={styles.btnPrimary} onPress={handleEmailLogin} disabled={isLoggingIn}>
+                <Text style={styles.btnPrimaryText}>{isLoggingIn ? '...' : '[ LOGIN ]'}</Text>
+              </TouchableOpacity>
+
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>OR</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
+              <TouchableOpacity style={styles.googleBtn} onPress={handleGoogleLogin} disabled={isLoggingIn}>
+                <FontAwesome5 name="google" size={18} color="#fff" />
+                <Text style={styles.googleBtnText}>[ SIGN IN WITH GOOGLE ]</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          // === INTERFAȚA DE PROFIL (LOGAT) ===
+          <View style={styles.content}>
+            <Text style={styles.title}>HACKER_PROFILE</Text>
+            <Text style={styles.subtitle}>// {user?.email}</Text>
+            
+            <View style={styles.profileCard}>
+              <TouchableOpacity 
+                style={styles.avatarWrapper} 
+                onPress={() => isEditing ? setShowAvatarModal(true) : undefined}
+                disabled={!isEditing || isUploadingImage}
+              >
+                <View style={[styles.avatarContainer, isEditing && styles.avatarEditing]}>
+                  {isUploadingImage ? (
+                    <ActivityIndicator color={Colors.dark.primary} />
+                  ) : (
+                    <AvatarRenderer avatarUrl={editForm.avatar_url || profile?.avatar_url} size={110} />
+                  )}
+                  {isEditing && !isUploadingImage && (
+                    <View style={styles.editIconBadge}>
+                      <Ionicons name="pencil" size={14} color="#000" />
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              {!isEditing ? (
+                // --- MOD VIZUALIZARE ---
+                <>
+                  <Text style={styles.usernameText}>
+                    {profile?.username || user?.email?.split('@')[0].toUpperCase()}
+                  </Text>
+                  <Text style={styles.titleText}>{profile?.title || 'Unknown Role'}</Text>
+                  
+                  <View style={styles.tagsRow}>
+                    <View style={styles.tag}>
+                      <FontAwesome5 name="code" size={12} color={Colors.dark.background} />
+                      <Text style={styles.tagText}>{profile?.main_language || 'Binary'}</Text>
+                    </View>
+                    {profile?.work_style && (
+                      <View style={[styles.tag, { backgroundColor: '#333' }]}>
+                        <Ionicons name="globe-outline" size={14} color={Colors.dark.text} />
+                        <Text style={[styles.tagText, { color: Colors.dark.text }]}>{profile.work_style}</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {profile?.goal && (
+                    <View style={styles.infoBox}>
+                      <Text style={styles.infoBoxLabel}>MISSION_OBJECTIVE:</Text>
+                      <Text style={styles.infoBoxText}>{profile.goal}</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.statsRow}>
+                    <View style={styles.statBox}>
+                      <Text style={styles.statValue}>1</Text>
+                      <Text style={styles.statLabel}>LEVEL</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statBox}>
+                      <Text style={styles.statValue}>0</Text>
+                      <Text style={styles.statLabel}>XP</Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity style={styles.btnSecondaryBtn} onPress={() => setIsEditing(true)}>
+                    <Text style={styles.btnSecondaryText}>[ EDIT_PROFILE ]</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                // --- MOD EDITARE ---
+                <View style={styles.editForm}>
+                  
+                  <Text style={styles.inputLabel}>Alias (Username)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={editForm.username}
+                    onChangeText={(t) => setEditForm(p => ({ ...p, username: t }))}
+                    placeholder="ex: Neo"
+                    placeholderTextColor="#555"
+                  />
+
+                  <HackerSelect 
+                    label="Specialization"
+                    value={editForm.title || ''}
+                    options={SPECIALIZATIONS}
+                    onChange={(v) => setEditForm(p => ({ ...p, title: v }))}
+                  />
+
+                  <HackerSelect 
+                    label="Main Language"
+                    value={editForm.main_language || ''}
+                    options={LANGUAGES}
+                    onChange={(v) => setEditForm(p => ({ ...p, main_language: v }))}
+                  />
+
+                  <HackerSelect 
+                    label="Current Objective"
+                    value={editForm.goal || ''}
+                    options={GOALS}
+                    onChange={(v) => setEditForm(p => ({ ...p, goal: v }))}
+                  />
+                  <Text style={styles.inputHelper}>// Your daily quests and AI interviewer will dynamically adjust to help you reach this goal.</Text>
+
+                  <HackerSelect 
+                    label="Daily Grind (Hours)"
+                    value={editForm.daily_time || ''}
+                    options={DAILY_TIMES}
+                    onChange={(v) => setEditForm(p => ({ ...p, daily_time: v }))}
+                  />
+                  <Text style={styles.inputHelper}>// Determines the length and difficulty curve of your personalized daily quests.</Text>
+
+                  <HackerSelect 
+                    label="Work Style"
+                    value={editForm.work_style || ''}
+                    options={WORK_STYLES}
+                    onChange={(v) => setEditForm(p => ({ ...p, work_style: v }))}
+                  />
+
+                  <Text style={styles.inputLabel}>GitHub Profile (Optional)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={editForm.github_link}
+                    onChangeText={(t) => setEditForm(p => ({ ...p, github_link: t }))}
+                    placeholder="github.com/username"
+                    placeholderTextColor="#555"
+                    autoCapitalize="none"
+                  />
+
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity style={[styles.btnSecondaryBtn, { flex: 1, borderColor: '#555', marginTop: 0 }]} onPress={() => setIsEditing(false)}>
+                      <Text style={[styles.btnSecondaryText, { color: '#888' }]}>[ CANCEL ]</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.btnPrimary, { flex: 1, marginTop: 0 }]} onPress={handleSaveProfile} disabled={isSaving}>
+                      <Text style={styles.btnPrimaryText}>{isSaving ? '...' : '[ SAVE ]'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {!isEditing && (
+              <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+                <Text style={styles.logoutBtnText}>[ DISCONNECT ]</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* AVATAR SELECTOR MODAL */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showAvatarModal}
+        onRequestClose={() => setShowAvatarModal(false)}
+      >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAvatarModal(false)}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>[ SELECT AVATAR ]</Text>
+              <TouchableOpacity onPress={() => setShowAvatarModal(false)}>
+                <Ionicons name="close" size={28} color={Colors.dark.text} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.uploadPhotoBtn} onPress={handlePickImage}>
+              <Ionicons name="image-outline" size={24} color={Colors.dark.background} />
+              <Text style={styles.uploadPhotoText}>[ UPLOAD REAL PHOTO ]</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.orText}>--- OR CHOOSE HACKER ICON ---</Text>
+
+            <View style={styles.iconGrid}>
+              {HACKER_ICONS.map((icon) => {
+                const isSelected = editForm.avatar_url === `icon:${icon}`;
+                return (
+                  <TouchableOpacity 
+                    key={icon} 
+                    style={[styles.iconBox, isSelected && styles.iconBoxSelected]} 
+                    onPress={() => handlePickIcon(icon)}
+                  >
+                    <FontAwesome5 name={icon as any} size={28} color={isSelected ? Colors.dark.background : Colors.dark.primary} />
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+    </View>
+  );
+}
+
+const { height } = Dimensions.get('window');
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.dark.background,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    padding: 20,
+    paddingTop: 50,
+  },
+  closeBtn: {
+    padding: 5,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  title: {
+    fontSize: 32,
+    fontFamily: 'VT323_400Regular',
+    color: Colors.dark.primary,
+    marginBottom: 5,
+  },
+  subtitle: {
+    color: '#888',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    marginBottom: 20,
+  },
+  formContainer: {
+    gap: 15,
+  },
+  inputLabel: {
+    color: Colors.dark.primary,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    marginBottom: 5,
+    marginTop: 10,
+  },
+  inputHelper: {
+    color: '#666',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 14,
+    marginTop: -5,
+    marginBottom: 10,
+    fontStyle: 'italic',
+  },
+  textInput: {
+    backgroundColor: '#0a0a0a',
+    borderWidth: 1,
+    borderColor: '#333',
+    padding: 15,
+    borderRadius: 8,
+    color: Colors.dark.primary,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 20,
+    marginBottom: 10,
+  },
+  btnPrimary: {
+    backgroundColor: Colors.dark.primary,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnPrimaryText: {
+    color: Colors.dark.background,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 22,
+  },
+  btnSecondaryBtn: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    width: '100%',
+  },
+  btnSecondaryText: {
+    color: Colors.dark.primary,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 22,
+  },
+  profileCard: {
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  avatarWrapper: {
+    marginBottom: 20,
+  },
+  avatarContainer: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: 'rgba(0, 255, 170, 0.05)',
+    borderWidth: 2,
+    borderColor: Colors.dark.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  avatarEditing: {
+    borderStyle: 'dashed',
+    borderColor: Colors.dark.primary,
+    borderWidth: 3,
+  },
+  editIconBadge: {
+    position: 'absolute',
+    bottom: 5,
+    backgroundColor: Colors.dark.primary,
+    padding: 6,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#111',
+  },
+  usernameText: {
+    color: Colors.dark.text,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 32,
+    letterSpacing: 2,
+  },
+  titleText: {
+    color: '#888',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 20,
+    marginBottom: 15,
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    flexWrap: 'wrap',
+    gap: 10,
+    justifyContent: 'center',
+  },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.dark.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 6,
+  },
+  tagText: {
+    color: Colors.dark.background,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 16,
+    textTransform: 'uppercase',
+  },
+  infoBox: {
+    backgroundColor: '#1a1a1a',
+    padding: 15,
+    borderRadius: 8,
+    width: '100%',
+    marginBottom: 20,
+  },
+  infoBoxLabel: {
+    color: '#666',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  infoBoxText: {
+    color: '#ddd',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-around',
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    paddingTop: 20,
+  },
+  statBox: {
+    alignItems: 'center',
+  },
+  statValue: {
+    color: Colors.dark.primary,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 36,
+  },
+  statLabel: {
+    color: '#888',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 16,
+    letterSpacing: 2,
+  },
+  editForm: {
+    width: '100%',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 20,
+  },
+  logoutBtn: {
+    marginTop: 30,
+    alignSelf: 'center',
+    padding: 10,
+  },
+  logoutBtnText: {
+    color: '#ff4444',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 20,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#111',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: height * 0.8,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    color: Colors.dark.primary,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 24,
+  },
+  uploadPhotoBtn: {
+    backgroundColor: Colors.dark.primary,
+    padding: 15,
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  uploadPhotoText: {
+    color: Colors.dark.background,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 20,
+  },
+  orText: {
+    color: '#555',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  iconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 15,
+  },
+  iconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+  },
+  iconBoxSelected: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: Colors.dark.primary,
+  },
+
+  // Google login
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#333',
+  },
+  dividerText: {
+    color: '#555',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 16,
+    marginHorizontal: 15,
+  },
+  googleBtn: {
+    backgroundColor: '#333',
+    padding: 15,
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+  },
+  googleBtnText: {
+    color: '#fff',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 20,
+  },
+
+  // Stat divider
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#333',
+  },
+});

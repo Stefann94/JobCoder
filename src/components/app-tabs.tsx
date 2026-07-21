@@ -41,10 +41,10 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
           <ThemedText style={styles.centerButtonLabel}>Code</ThemedText>
         </Pressable>
 
-        {/* Jobs Tab (Dummy) */}
+        {/* Leaderboard Tab (Dummy for now) */}
         <TabButton 
-          icon="briefcase" 
-          label="Jobs" 
+          icon="trophy" 
+          label="Rank" 
           isFocused={false} 
           onPress={() => {}} 
         />

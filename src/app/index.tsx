@@ -1,19 +1,33 @@
-import React, { useState } from 'react';
-import { StyleSheet, ScrollView, Pressable, View, Dimensions, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, ScrollView, Pressable, View, Dimensions, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CATEGORIES } from '@/constants/questions';
 import { Spacing, MaxContentWidth, Colors } from '@/constants/theme';
+import { fetchCategories, Category } from '@/lib/api';
+import { useAuth } from '@/providers/AuthProvider';
+import AvatarRenderer from '@/components/avatar-renderer';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user, profile, isAuthenticated } = useAuth();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const webPadding = Platform.select({ web: { paddingTop: 80 }, default: {} });
   
+  useEffect(() => {
+    async function loadData() {
+      const data = await fetchCategories();
+      setCategories(data);
+      setLoading(false);
+    }
+    loadData();
+  }, []);
+
   const handleStartMock = () => {
     router.push({
       pathname: '/quiz',
@@ -38,16 +52,20 @@ export default function HomeScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.userInfo}>
+            <Pressable style={styles.userInfo} onPress={() => router.push('/profile')}>
               <View style={styles.avatarContainer}>
-                <FontAwesome5 name="user-ninja" size={20} color={Colors.dark.primary} />
-                <View style={styles.notificationDot} />
+                <AvatarRenderer avatarUrl={profile?.avatar_url} size={28} />
+                {!isAuthenticated && <View style={styles.notificationDot} />}
               </View>
               <View>
-                <ThemedText style={styles.username}>PLAYER_ONE</ThemedText>
-                <ThemedText style={styles.levelText}>Lvl 12 Junior Dev</ThemedText>
+                <ThemedText style={styles.username}>
+                  {isAuthenticated ? (profile?.username || user?.email?.split('@')[0].toUpperCase() || 'HACKER') : 'GUEST'}
+                </ThemedText>
+                <ThemedText style={styles.levelText}>
+                  {isAuthenticated ? (profile?.title || 'Lvl 1 Hacker') : 'Not Connected (Tap to Login)'}
+                </ThemedText>
               </View>
-            </View>
+            </Pressable>
             <Pressable>
               <FontAwesome name="bell" size={22} color={Colors.dark.textSecondary} />
             </Pressable>
@@ -76,34 +94,44 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <ThemedText style={styles.sectionTitle}>SKILL TREES</ThemedText>
             
-            {CATEGORIES.slice(0, 4).map((category, index) => {
-              // Fake levels for UI mockup
-              const levels = [4, 7, 2, 9];
-              const progress = [0.4, 0.7, 0.2, 0.9];
-              
-              return (
-                <Pressable key={category.id} onPress={() => handleStartQuiz(category.id)}>
-                  {({ pressed }) => (
-                    <View style={[styles.skillCard, pressed && styles.pressed]}>
-                      <View style={styles.skillIconBox}>
-                        <FontAwesome5 name={category.icon as any} size={20} color={category.color} />
-                      </View>
-                      <View style={styles.skillContent}>
-                        <View style={styles.skillHeaderRow}>
-                          <ThemedText style={styles.skillTitle}>{category.title}</ThemedText>
-                          <ThemedText style={styles.skillLevel}>Lvl {levels[index]}</ThemedText>
+            {loading ? (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={Colors.dark.primary} />
+                <ThemedText style={{ marginTop: 10, fontFamily: 'VT323_400Regular', color: Colors.dark.primary }}>
+                  Fetching Data from Cloud...
+                </ThemedText>
+              </View>
+            ) : (
+              categories.map((category, index) => {
+                // Fake levels for UI mockup
+                const levels = [4, 7, 2, 9, 1];
+                const progress = [0.4, 0.7, 0.2, 0.9, 0.1];
+                const displayIndex = index % levels.length;
+                
+                return (
+                  <Pressable key={category.id} onPress={() => handleStartQuiz(category.id)}>
+                    {({ pressed }) => (
+                      <View style={[styles.skillCard, pressed && styles.pressed]}>
+                        <View style={styles.skillIconBox}>
+                          <FontAwesome5 name={category.icon as any} size={20} color={category.color} />
                         </View>
-                        {/* Fake striped progress bar */}
-                        <View style={styles.progressTrack}>
-                          <View style={[styles.progressFill, { width: `${progress[index] * 100}%` }]} />
+                        <View style={styles.skillContent}>
+                          <View style={styles.skillHeaderRow}>
+                            <ThemedText style={styles.skillTitle}>{category.title}</ThemedText>
+                            <ThemedText style={styles.skillLevel}>Lvl {levels[displayIndex]}</ThemedText>
+                          </View>
+                          {/* Fake striped progress bar */}
+                          <View style={styles.progressTrack}>
+                            <View style={[styles.progressFill, { width: `${progress[displayIndex] * 100}%` }]} />
+                          </View>
                         </View>
+                        <FontAwesome name="chevron-right" size={12} color={Colors.dark.textSecondary} />
                       </View>
-                      <FontAwesome name="chevron-right" size={12} color={Colors.dark.textSecondary} />
-                    </View>
-                  )}
-                </Pressable>
-              );
-            })}
+                    )}
+                  </Pressable>
+                );
+              })
+            )}
           </View>
 
           {/* Upcoming Boss Fights */}
