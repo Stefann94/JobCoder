@@ -70,11 +70,16 @@ export default function OnboardingSlide({ data, index, isActive }: OnboardingSli
         iconRotation.value = withSpring(360, { damping: 12, stiffness: 40 });
         break;
 
-      case 1: // LEVEL UP — icon drops from above with heavy bounce
-        iconTranslateY.value = -200;
-        iconOpacity.value = withTiming(1, { duration: 200 });
-        iconTranslateY.value = withSpring(0, { damping: 5, stiffness: 90 });
-        iconScale.value = withSpring(1, { damping: 8 });
+      case 1: // LEVEL UP — fast joypad rock (gaming action)
+        iconOpacity.value = withTiming(1, { duration: 300 });
+        iconScale.value = withSpring(1, { damping: 8, stiffness: 100 });
+        iconRotation.value = withSequence(
+          withTiming(25, { duration: 80 }),
+          withTiming(-20, { duration: 80 }),
+          withTiming(15, { duration: 80 }),
+          withTiming(-10, { duration: 80 }),
+          withTiming(0, { duration: 100 })
+        );
         break;
 
       case 2: // BOSS — icon fades in then shakes aggressively
@@ -93,10 +98,10 @@ export default function OnboardingSlide({ data, index, isActive }: OnboardingSli
         ));
         break;
 
-      case 3: // GUILD — icon scales up with a satisfying pop
+      case 3: // GUILD — icon scales up with a satisfying pop (reduced scale to stay in box)
         iconOpacity.value = withDelay(200, withTiming(1, { duration: 300 }));
         iconScale.value = withDelay(200, withSequence(
-          withSpring(1.3, { damping: 4, stiffness: 200 }),
+          withSpring(1.15, { damping: 5, stiffness: 180 }),
           withSpring(1, { damping: 8, stiffness: 100 })
         ));
         break;
