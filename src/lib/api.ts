@@ -28,6 +28,17 @@ export interface UserProfile {
   work_style?: string;
   github_link?: string;
   avatar_url: string;
+  xp?: number;
+  level?: number;
+}
+
+export interface UserProgress {
+  id?: string;
+  user_id: string;
+  category_id: string;
+  completed_questions: string[];
+  progress_percent: number;
+  updated_at?: string;
 }
 
 // Funcție ultra-eficientă pentru a lua Categoriile din Cloud
@@ -116,5 +127,49 @@ export async function uploadAvatarImage(userId: string, imageUri: string): Promi
   } catch (error) {
     console.error('Unexpected error during upload:', error);
     return null;
+  }
+}
+
+// ---- PROGRESS API ----
+
+export async function fetchUserProgress(userId: string): Promise<UserProgress[]> {
+  const { data, error } = await supabase
+    .from('user_progress')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Error fetching user progress:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function updateUserProgress(progress: UserProgress): Promise<UserProgress | null> {
+  const { data, error } = await supabase
+    .from('user_progress')
+    .upsert({ ...progress, updated_at: new Date() }, { onConflict: 'user_id,category_id' })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating progress:', error);
+    return null;
+  }
+  return data;
+}
+
+export async function bulkUpsertUserProgress(progresses: UserProgress[]): Promise<void> {
+  if (!progresses.length) return;
+  const { error } = await supabase
+    .from('user_progress')
+    .upsert(
+      progresses.map(p => ({ ...p, updated_at: new Date() })), 
+      { onConflict: 'user_id,category_id' }
+    );
+
+  if (error) {
+    console.error('Error bulk updating progress:', error);
+    throw error;
   }
 }

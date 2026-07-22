@@ -7,18 +7,18 @@ import Animated, {
   withSpring,
   withDelay,
 } from 'react-native-reanimated';
-import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { FontAwesome5 } from '@expo/vector-icons';
 
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/theme';
 import OnboardingSlide, { SlideData } from '@/components/onboarding-slide';
+import { useProgress } from '@/providers/ProgressProvider';
 
-WebBrowser.maybeCompleteAuthSession();
-const redirectUri = AuthSession.makeRedirectUri({ scheme: 'jobcoder' });
-
-const { width } = Dimensions.get('window');
+GoogleSignin.configure({
+  webClientId: '738118505432-9cepk9gmep4scfcd8lvg1kummaa18f8a.apps.googleusercontent.com',
+});
+const { width, height } = Dimensions.get('window');
 
 const SLIDES: SlideData[] = [
   {
@@ -110,6 +110,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  const { resetProgress } = useProgress();
+
   // Button animations
   const btnOpacity = useSharedValue(0);
   const btnTranslateY = useSharedValue(30);
@@ -189,37 +191,32 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
   const handleGoogleLogin = async () => {
     try {
       setIsLoggingIn(true);
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUri,
-          skipBrowserRedirect: true,
-        },
-      });
+      
+      // Ensure Google Play Services are available
+      await GoogleSignin.hasPlayServices();
+      
+      // Attempt login
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken;
 
-      if (error || !data.url) {
-        Alert.alert('Error', error?.message || 'Could not start Google login.');
-        setIsLoggingIn(false);
-        return;
+      if (idToken) {
+        // Send the native ID token to Supabase
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: idToken,
+        });
+
+        if (error) throw error;
+        onComplete();
+      } else {
+        throw new Error('Nu s-a putut genera token-ul de securitate de la Google.');
       }
-
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
-
-      if (result.type === 'success' && result.url) {
-        const url = result.url;
-        const params = new URLSearchParams(url.split('#')[1]);
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
-
-        if (accessToken && refreshToken) {
-          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-          onComplete();
-          return; 
-        }
+    } catch (error: any) {
+      // Ignore user cancellation errors
+      if (error.code !== 'SIGN_IN_CANCELLED') {
+        Alert.alert('Eroare Autentificare', error.message || 'A apărut o eroare necunoscută.');
       }
-      setIsLoggingIn(false);
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } finally {
       setIsLoggingIn(false);
     }
   };
@@ -243,15 +240,22 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
       
       {/* SLIDES SECTION */}
       {!showAuthGate && (
-        <Animated.View style={slidesStyle}>
-          {!isLastSlide && (
-            <TouchableOpacity style={styles.skipBtn} onPress={handleBeginQuest}>
-              <Text style={styles.skipText}>SKIP {'>'}</Text>
-            </TouchableOpacity>
-          )}
+        <Animated.View style={[slidesStyle, { flex: 1 }]}>
+          {/* HEADER */}
+          <View style={styles.headerSection}>
+            {!isLastSlide ? (
+              <TouchableOpacity style={styles.skipBtn} onPress={handleBeginQuest}>
+                <Text style={styles.skipText}>SKIP {'>'}</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.skipBtn} /> // Spacer to keep layout intact
+            )}
+          </View>
 
-          <FlatList
-            ref={flatListRef}
+          {/* SLIDES */}
+          <View style={styles.listContainer}>
+            <FlatList
+              ref={flatListRef}
             data={SLIDES}
             horizontal
             pagingEnabled
@@ -262,7 +266,8 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
             renderItem={({ item, index }) => (
               <OnboardingSlide data={item} index={index} isActive={index === activeIndex} />
             )}
-          />
+            />
+          </View>
 
           <View style={styles.bottomSection}>
             <View style={styles.dotsRow}>
@@ -357,7 +362,15 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.guestBtn} onPress={onComplete} disabled={isLoggingIn}>
+              <TouchableOpacity 
+                style={styles.guestBtn} 
+                onPress={async () => {
+                  await supabase.auth.signOut(); // Asigură-te că orice cont e delogat
+                  await resetProgress(); // Șterge progresul existent (reset la 0) pt. Incognito
+                  onComplete();
+                }} 
+                disabled={isLoggingIn}
+              >
                 <Text style={styles.guestBtnText}>PROCEED INCOGNITO</Text>
               </TouchableOpacity>
 
@@ -375,12 +388,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.dark.background,
   },
+  headerSection: {
+    height: 120, // Tall enough for safe area + button
+    paddingTop: 60,
+    paddingRight: 15,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
   skipBtn: {
-    position: 'absolute',
-    top: 55,
-    right: 25,
-    zIndex: 10,
     padding: 10,
+    width: 100, // Fixed width so spacer acts correctly
+    alignItems: 'flex-end',
   },
   skipText: {
     fontFamily: 'VT323_400Regular',
@@ -388,13 +406,15 @@ const styles = StyleSheet.create({
     color: '#666',
     letterSpacing: 2,
   },
+  listContainer: {
+    flex: 1, // Takes exactly the middle space left
+  },
   bottomSection: {
-    position: 'absolute',
-    bottom: 60,
-    left: 0,
-    right: 0,
+    height: 180, // Fixed safe space for footer
     alignItems: 'center',
-    gap: 30,
+    justifyContent: 'flex-start',
+    paddingTop: 20,
+    gap: height > 750 ? 40 : 25, // Responsive gap
   },
   dotsRow: {
     flexDirection: 'row',
@@ -426,13 +446,13 @@ const styles = StyleSheet.create({
   },
   beginBtn: {
     backgroundColor: Colors.dark.primary,
-    paddingVertical: 16,
-    paddingHorizontal: 40,
+    paddingVertical: height > 750 ? 18 : 14,
+    paddingHorizontal: width * 0.1,
     borderRadius: 8,
   },
   beginBtnText: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 24,
+    fontSize: width > 380 ? 24 : 20,
     color: Colors.dark.background,
     letterSpacing: 2,
   },

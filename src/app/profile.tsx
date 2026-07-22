@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Modal, FlatList, Dimensions } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
@@ -12,11 +11,9 @@ import { fetchUserProfile, updateUserProfile, uploadAvatarImage, UserProfile } f
 import HackerSelect from '@/components/hacker-select';
 import AvatarRenderer from '@/components/avatar-renderer';
 
-WebBrowser.maybeCompleteAuthSession();
-
-// Google OAuth config
-const GOOGLE_CLIENT_ID = '738118505432-9cepk9gmep4scfcd8lvg1kummaa18f8a.apps.googleusercontent.com';
-const redirectUri = AuthSession.makeRedirectUri({ scheme: 'jobcoder' });
+GoogleSignin.configure({
+  webClientId: '738118505432-9cepk9gmep4scfcd8lvg1kummaa18f8a.apps.googleusercontent.com',
+});
 
 const SPECIALIZATIONS = ['Frontend Developer', 'Backend Ninja', 'Fullstack Wizard', 'UI/UX Designer', 'Cyber Security', 'QA Tester', 'Data Scientist', 'DevOps Ops', 'Mobile Dev'];
 const LANGUAGES = ['JavaScript', 'TypeScript', 'Python', 'Java', 'C++', 'C#', 'Go', 'Rust', 'Ruby', 'PHP', 'Swift', 'Kotlin'];
@@ -146,36 +143,25 @@ export default function ProfileScreen() {
   const handleGoogleLogin = async () => {
     try {
       setIsLoggingIn(true);
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUri,
-          skipBrowserRedirect: true,
-        },
-      });
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken;
 
-      if (error || !data.url) {
-        Alert.alert('Error', error?.message || 'Could not start Google login.');
-        setIsLoggingIn(false);
-        return;
+      if (idToken) {
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: idToken,
+        });
+
+        if (error) throw error;
+      } else {
+        throw new Error('Nu s-a putut genera token-ul de securitate de la Google.');
       }
-
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
-
-      if (result.type === 'success') {
-        const url = result.url;
-        // Extract tokens from the redirect URL hash
-        const params = new URLSearchParams(url.split('#')[1]);
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
-
-        if (accessToken && refreshToken) {
-          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-        }
+    } catch (error: any) {
+      if (error.code !== 'SIGN_IN_CANCELLED') {
+        Alert.alert('Eroare Autentificare', error.message || 'A apărut o eroare necunoscută.');
       }
-      setIsLoggingIn(false);
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+    } finally {
       setIsLoggingIn(false);
     }
   };

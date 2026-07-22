@@ -9,6 +9,7 @@ import AppTabs from '@/components/app-tabs';
 import OnboardingScreen from '@/components/onboarding-screen';
 import { Colors } from '@/constants/theme';
 import { AuthProvider } from '@/providers/AuthProvider';
+import { ProgressProvider } from '@/providers/ProgressProvider';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -33,25 +34,27 @@ export default function TabLayout() {
 
   if (!loaded) return null;
 
-  if (showOnboarding) {
-    return (
-      <>
-        <AnimatedSplashOverlay />
-        <OnboardingScreen onComplete={handleOnboardingComplete} />
-      </>
-    );
-  }
-
   return (
     <AuthProvider>
-      <AnimatedSplashOverlay />
-      <Tabs 
-        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: Colors.dark.background } }}
-        tabBar={(props) => <AppTabs {...props} />}
-      >
-        <Tabs.Screen name="index" />
-        <Tabs.Screen name="explore" />
-      </Tabs>
+      <ProgressProvider>
+        {showOnboarding ? (
+          <>
+            <AnimatedSplashOverlay />
+            <OnboardingScreen onComplete={handleOnboardingComplete} />
+          </>
+        ) : (
+          <>
+            <AnimatedSplashOverlay />
+            <Tabs 
+              screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: Colors.dark.background } }}
+              tabBar={(props) => <AppTabs {...props} />}
+            >
+              <Tabs.Screen name="index" />
+              <Tabs.Screen name="explore" />
+            </Tabs>
+          </>
+        )}
+      </ProgressProvider>
     </AuthProvider>
   );
 }

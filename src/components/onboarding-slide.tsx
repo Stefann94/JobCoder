@@ -14,6 +14,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 
 const { width, height } = Dimensions.get('window');
+const VISUAL_SIZE = Math.min(width * 0.55, 230);
 
 export interface SlideData {
   icon: string;
@@ -165,7 +166,7 @@ export default function OnboardingSlide({ data, index, isActive }: OnboardingSli
         
         {/* Icon */}
         <Animated.View style={[styles.iconArea, iconStyle]}>
-          <FontAwesome5 name={data.icon as any} size={85} color={data.accentColor} />
+          <FontAwesome5 name={data.icon as any} size={VISUAL_SIZE * 0.4} color={data.accentColor} />
         </Animated.View>
       </View>
 
@@ -195,11 +196,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 35,
   },
   visualContainer: {
-    width: 200,
-    height: 200,
+    width: VISUAL_SIZE,
+    height: VISUAL_SIZE,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: height * 0.06,
   },
   bracketContainer: {
     position: 'absolute',
@@ -242,25 +243,25 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 34,
+    fontSize: 32,
     letterSpacing: 3,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   subtitle: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 18,
+    fontSize: width > 380 ? 18 : 16,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 16,
-    letterSpacing: 1,
+    marginBottom: height * 0.04,
+    letterSpacing: 2,
   },
   description: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 20,
+    fontSize: width > 380 ? 20 : 18,
     color: '#aaa',
     textAlign: 'center',
-    lineHeight: 28,
-    maxWidth: 310,
+    lineHeight: 30,
+    maxWidth: width * 0.85,
   },
 });
