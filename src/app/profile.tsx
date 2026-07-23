@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Modal, FlatList, Dimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,6 +24,7 @@ const WORK_STYLES = ['100% Remote', 'Hybrid', 'Office', 'Digital Nomad'];
 const HACKER_ICONS = ['user-ninja', 'user-astronaut', 'user-secret', 'robot', 'ghost', 'skull', 'dragon', 'spider', 'mask', 'cat', 'terminal', 'bug'];
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, isAuthenticated, isLoading, refreshProfile } = useAuth();
 
@@ -137,6 +139,11 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = async () => {
+    try {
+      await GoogleSignin.signOut();
+    } catch (e) {
+      // ignore error if not logged in with google
+    }
     await supabase.auth.signOut();
   };
 
@@ -176,7 +183,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
           <Ionicons name="close" size={28} color={Colors.dark.text} />
@@ -383,7 +390,7 @@ export default function ProfileScreen() {
         onRequestClose={() => setShowAvatarModal(false)}
       >
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAvatarModal(false)}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 40) }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>[ SELECT AVATAR ]</Text>
               <TouchableOpacity onPress={() => setShowAvatarModal(false)}>
@@ -417,7 +424,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </Modal>
 
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -432,7 +439,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     padding: 20,
-    paddingTop: 50,
   },
   closeBtn: {
     padding: 5,
@@ -653,7 +659,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     maxHeight: height * 0.8,
     padding: 20,
-    paddingBottom: 40,
   },
   modalHeader: {
     flexDirection: 'row',

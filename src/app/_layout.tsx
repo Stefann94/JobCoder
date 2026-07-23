@@ -10,6 +10,7 @@ import OnboardingScreen from '@/components/onboarding-screen';
 import { Colors } from '@/constants/theme';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { ProgressProvider } from '@/providers/ProgressProvider';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -35,26 +36,28 @@ export default function TabLayout() {
   if (!loaded) return null;
 
   return (
-    <AuthProvider>
-      <ProgressProvider>
-        {showOnboarding ? (
-          <>
-            <AnimatedSplashOverlay />
-            <OnboardingScreen onComplete={handleOnboardingComplete} />
-          </>
-        ) : (
-          <>
-            <AnimatedSplashOverlay />
-            <Tabs 
-              screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: Colors.dark.background } }}
-              tabBar={(props) => <AppTabs {...props} />}
-            >
-              <Tabs.Screen name="index" />
-              <Tabs.Screen name="explore" />
-            </Tabs>
-          </>
-        )}
-      </ProgressProvider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <ProgressProvider>
+          {showOnboarding ? (
+            <>
+              <AnimatedSplashOverlay />
+              <OnboardingScreen onComplete={handleOnboardingComplete} />
+            </>
+          ) : (
+            <>
+              <AnimatedSplashOverlay />
+              <Tabs 
+                screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: Colors.dark.background } }}
+                tabBar={(props) => <AppTabs {...props} />}
+              >
+                <Tabs.Screen name="index" />
+                <Tabs.Screen name="explore" />
+              </Tabs>
+            </>
+          )}
+        </ProgressProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

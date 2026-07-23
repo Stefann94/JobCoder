@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, FlatList, ViewToken, Alert, ActivityIndicator, TextInput, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, FlatList, ViewToken, Alert, ActivityIndicator, TextInput, ScrollView, StatusBar, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -23,30 +24,30 @@ const { width, height } = Dimensions.get('window');
 const SLIDES: SlideData[] = [
   {
     icon: 'shield-alt',
-    title: 'WELCOME, HACKER',
-    subtitle: 'INITIATING SYSTEM...',
-    description: 'Your journey to landing the ultimate tech job starts here. Prepare for battle.',
+    title: 'YOUR TECH QUEST',
+    subtitle: 'READY PLAYER ONE?',
+    description: 'Every great developer started at level 1. We are here to guide you through the noise, build your confidence, and help you forge a career you can be proud of.',
     accentColor: Colors.dark.primary,
   },
   {
     icon: 'gamepad',
-    title: 'LEVEL UP YOUR SKILLS',
-    subtitle: 'GRIND FOR XP',
-    description: 'Master coding challenges, earn XP, and unlock new skill trees. Every question brings you closer to your dream job.',
+    title: 'UNLOCK YOUR POTENTIAL',
+    subtitle: 'GRIND WITH PURPOSE',
+    description: "Don't just memorize—understand. Complete targeted challenges, gain real-world XP, and watch your coding skills evolve from basic scripts to elite architecture.",
     accentColor: '#60A5FA',
   },
   {
     icon: 'user-tie',
-    title: 'FACE THE BOSS',
-    subtitle: 'SIMULATE INTERVIEWS',
-    description: 'Face off against brutal AI interviewers. Answer technical questions, negotiate salary, and survive the pressure.',
+    title: 'MASTER THE FINAL BOSS',
+    subtitle: 'SIMULATED ARENA',
+    description: 'Interviews can be intimidating. Step into our risk-free simulator to practice your answers, conquer your anxiety, and prove you have what it takes to win the offer.',
     accentColor: Colors.dark.danger,
   },
   {
     icon: 'trophy',
-    title: 'JOIN THE GUILD',
-    subtitle: 'BECOME A LEGEND',
-    description: 'Aced the interview? Track your progress, rank up on leaderboards, and become an elite developer.',
+    title: 'CLAIM YOUR REWARD',
+    subtitle: 'JOIN THE HALL OF FAME',
+    description: "The grind always pays off. Track your growth, stand out from the crowd, and secure the role you've worked so hard for. Your new tech career awaits.",
     accentColor: Colors.dark.warning,
   },
 ];
@@ -101,6 +102,7 @@ interface OnboardingScreenProps {
 }
 
 export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
+  const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
@@ -269,19 +271,20 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
             />
           </View>
 
-          <View style={styles.bottomSection}>
-            <View style={styles.dotsRow}>
-              {SLIDES.map((slide, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.dot,
-                    i === activeIndex && [styles.dotActive, { backgroundColor: slide.accentColor }],
-                  ]}
-                />
-              ))}
-            </View>
+          {/* DOTS - between content and button */}
+          <View style={styles.dotsRow}>
+            {SLIDES.map((slide, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.dot,
+                  i === activeIndex && [styles.dotActive, { backgroundColor: slide.accentColor }],
+                ]}
+              />
+            ))}
+          </View>
 
+          <View style={[styles.bottomSection, { paddingBottom: Math.max(insets.bottom, 15) }]}>
             {isLastSlide ? (
               <Animated.View style={btnAnimStyle}>
                 <TouchableOpacity style={styles.beginBtn} onPress={handleNext} activeOpacity={0.8}>
@@ -389,11 +392,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.background,
   },
   headerSection: {
-    height: 120, // Tall enough for safe area + button
-    paddingTop: 60,
-    paddingRight: 15,
+    paddingTop: (Platform.OS === 'android' ? (StatusBar.currentHeight || 40) : 50) + 10,
+    paddingRight: 20,
+    paddingBottom: 5,
     alignItems: 'flex-end',
-    justifyContent: 'center',
   },
   skipBtn: {
     padding: 10,
@@ -407,18 +409,17 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   listContainer: {
-    flex: 1, // Takes exactly the middle space left
-  },
-  bottomSection: {
-    height: 180, // Fixed safe space for footer
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: 20,
-    gap: height > 750 ? 40 : 25, // Responsive gap
+    flex: 1,
   },
   dotsRow: {
     flexDirection: 'row',
+    justifyContent: 'center',
     gap: 12,
+    paddingVertical: 15,
+  },
+  bottomSection: {
+    alignItems: 'center',
+    paddingTop: 10,
   },
   dot: {
     width: 10,

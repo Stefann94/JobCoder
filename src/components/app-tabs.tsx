@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5, FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -9,9 +10,10 @@ import { Colors, Spacing } from '@/constants/theme';
 
 export default function AppTabs({ state, descriptors, navigation }: BottomTabBarProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.tabBarContainer}>
+    <View style={[styles.tabBarContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <View style={styles.tabBarInner}>
         
         {/* Hub Tab */}
@@ -81,8 +83,6 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: '#0A0A0A',
     borderTopWidth: 1,
-    borderTopColor: '#222222',
-    paddingBottom: Platform.OS === 'ios' ? 20 : 10,
     paddingTop: 10,
   },
   tabBarInner: {

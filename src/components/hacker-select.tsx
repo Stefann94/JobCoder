@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, FlatList, Dimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 
@@ -12,6 +13,7 @@ interface HackerSelectProps {
 }
 
 export default function HackerSelect({ label, value, options, onChange, placeholder }: HackerSelectProps) {
+  const insets = useSafeAreaInsets();
   const [modalVisible, setModalVisible] = useState(false);
 
   return (
@@ -32,7 +34,7 @@ export default function HackerSelect({ label, value, options, onChange, placehol
         onRequestClose={() => setModalVisible(false)}
       >
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setModalVisible(false)}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: Math.max(insets.bottom, 20) }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>[ SELECT {label.toUpperCase()} ]</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
