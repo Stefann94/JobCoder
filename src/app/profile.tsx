@@ -190,7 +190,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: isEditing ? 120 : Math.max(insets.bottom, 10), flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: isEditing ? 120 : 100, flexGrow: 1 }} showsVerticalScrollIndicator={false}>
         {!isAuthenticated ? (
           // === INTERFAȚA DE LOGIN (GUEST) ===
           <View style={styles.content}>
@@ -233,7 +233,7 @@ export default function ProfileScreen() {
           </View>
         ) : (
           // === INTERFAȚA DE PROFIL (LOGAT) ===
-          <View style={[styles.content, !isEditing && { justifyContent: 'center', paddingBottom: 10 }]}>
+          <View style={[styles.content, !isEditing && { justifyContent: 'center' }]}>
             <Text style={[styles.title, !isEditing && { fontSize: 28, marginBottom: 2 }]}>HACKER_PROFILE</Text>
             <Text style={[styles.subtitle, !isEditing && { fontSize: 16, marginBottom: 10 }]}>// {user?.email}</Text>
             
