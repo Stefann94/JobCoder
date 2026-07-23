@@ -115,11 +115,50 @@ export async function fetchQuestionsByCategory(categoryId: string): Promise<Ques
         }))
       : [],
     explanation: q.explanation,
+    difficulty: q.difficulty || 'medium',
+  }));
+}
+
+// Fetch personalized Daily Mix questions based on user's learned categories
+export async function fetchDailyMixQuestions(learnedCategoryIds: string[]): Promise<Question[]> {
+  // If user hasn't learned anything yet, fallback to fundamental categories
+  const targetCategories = learnedCategoryIds.length > 0 
+    ? learnedCategoryIds 
+    : ['frontend', 'algorithms', 'database'];
+
+  const { data, error } = await supabase
+    .from('questions')
+    .select('*')
+    .in('category_id', targetCategories);
+
+  if (error) {
+    console.error('Error fetching daily mix questions:', error);
+    return [];
+  }
+
+  let results = data || [];
+  
+  // Shuffle randomly and pick top 10 questions
+  results = results.sort(() => 0.5 - Math.random()).slice(0, 10);
+
+  // Map from DB format to UI format
+  return results.map((q: any) => ({
+    id: q.id,
+    category_id: q.category_id,
+    title: q.question, 
+    options: Array.isArray(q.options) 
+      ? q.options.map((optText: string, idx: number) => ({
+          id: idx.toString(),
+          text: optText,
+          isCorrect: idx === q.correct_answer
+        }))
+      : [],
+    explanation: q.explanation,
     difficulty: q.difficulty || 'Medium'
   }));
 }
 
-// Lăm profilul utilizatorului
+// Luăm profilul utilizatorului
 export async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
   const { data, error } = await supabase
     .from('profiles')

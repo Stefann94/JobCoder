@@ -1,27 +1,61 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, VT323_400Regular } from '@expo-google-fonts/vt323';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 import OnboardingScreen from '@/components/onboarding-screen';
 import { Colors } from '@/constants/theme';
-import { AuthProvider } from '@/providers/AuthProvider';
+import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 import { ProgressProvider } from '@/providers/ProgressProvider';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ActivityIndicator, View } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
 
-const ONBOARDING_KEY = '@jobcoder_onboarding_done';
+function RootLayoutNav() {
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.dark.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator color={Colors.dark.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <AnimatedSplashOverlay />
+        <OnboardingScreen onComplete={() => {}} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <AnimatedSplashOverlay />
+      <Tabs 
+        screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: Colors.dark.background } }}
+        // @ts-expect-error type mismatch between Expo Router and react-navigation
+        tabBar={(props) => <AppTabs {...props} />}
+      >
+        <Tabs.Screen name="index" />
+        <Tabs.Screen name="learn" />
+        <Tabs.Screen name="leaderboard" />
+        <Tabs.Screen name="explore" />
+        <Tabs.Screen name="arena" />
+      </Tabs>
+    </>
+  );
+}
 
 export default function TabLayout() {
   const [loaded] = useFonts({
     VT323_400Regular,
   });
-
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(true);
 
   useEffect(() => {
     if (loaded) {
@@ -29,37 +63,13 @@ export default function TabLayout() {
     }
   }, [loaded]);
 
-  const handleOnboardingComplete = () => {
-    setShowOnboarding(false);
-  };
-
   if (!loaded) return null;
 
   return (
     <SafeAreaProvider>
       <AuthProvider>
         <ProgressProvider>
-          {showOnboarding ? (
-            <>
-              <AnimatedSplashOverlay />
-              <OnboardingScreen onComplete={handleOnboardingComplete} />
-            </>
-          ) : (
-            <>
-              <AnimatedSplashOverlay />
-              <Tabs 
-                screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: Colors.dark.background } }}
-                // @ts-expect-error type mismatch between Expo Router and react-navigation
-                tabBar={(props) => <AppTabs {...props} />}
-              >
-                <Tabs.Screen name="index" />
-                <Tabs.Screen name="learn" />
-                <Tabs.Screen name="leaderboard" />
-                <Tabs.Screen name="explore" />
-                <Tabs.Screen name="arena" />
-              </Tabs>
-            </>
-          )}
+          <RootLayoutNav />
         </ProgressProvider>
       </AuthProvider>
     </SafeAreaProvider>

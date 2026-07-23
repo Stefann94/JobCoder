@@ -365,18 +365,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={styles.guestBtn} 
-                onPress={async () => {
-                  await supabase.auth.signOut(); // Asigură-te că orice cont e delogat
-                  await resetProgress(); // Șterge progresul existent (reset la 0) pt. Incognito
-                  onComplete();
-                }} 
-                disabled={isLoggingIn}
-              >
-                <Text style={styles.guestBtnText}>PROCEED INCOGNITO</Text>
-              </TouchableOpacity>
-
             </View>
           </ScrollView>
         </Animated.View>

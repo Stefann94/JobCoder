@@ -7,7 +7,14 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProgress } from '@/providers/ProgressProvider';
-import { fetchQuestionsByCategory, Question, fetchCategories, Category, addXpToProfile } from '@/lib/api';
+import { 
+  fetchQuestionsByCategory, 
+  fetchCategories, 
+  Category, 
+  Question, 
+  addXpToProfile,
+  fetchDailyMixQuestions
+} from '@/lib/api';
 import { Spacing, MaxContentWidth } from '@/constants/theme';
 
 export default function QuizScreen() {
@@ -32,7 +39,17 @@ export default function QuizScreen() {
     const loadData = async () => {
       const fetchedCats = await fetchCategories();
       setCategories(fetchedCats);
-      const fetchedQs = await fetchQuestionsByCategory(categoryId);
+      
+      let fetchedQs;
+      if (categoryId === 'daily_mix') {
+        const learnedCategoryIds = Object.entries(progress)
+          .filter(([key, val]) => val.progress_percent > 0)
+          .map(([key]) => key);
+        fetchedQs = await fetchDailyMixQuestions(learnedCategoryIds);
+      } else {
+        fetchedQs = await fetchQuestionsByCategory(categoryId);
+      }
+      
       setQuizQuestions(fetchedQs);
     };
     loadData();
@@ -58,7 +75,7 @@ export default function QuizScreen() {
     } else {
       // Finish Quiz
       setQuizCompleted(true);
-      if (user && categoryId !== 'mock') {
+      if (user && categoryId !== 'mock' && categoryId !== 'daily_mix') {
         const correctPercentage = (score / quizQuestions.length) * 100;
         const currentProgress = progress[categoryId]?.progress_percent || 0;
         

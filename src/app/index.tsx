@@ -70,14 +70,13 @@ export default function HomeScreen() {
             <Pressable style={styles.userInfo} onPress={() => router.push('/profile')}>
               <View style={styles.avatarContainer}>
                 <AvatarRenderer avatarUrl={profile?.avatar_url} size={28} />
-                {!isAuthenticated && <View style={styles.notificationDot} />}
               </View>
               <View>
                 <ThemedText style={styles.username}>
-                  {isAuthenticated ? (profile?.username || user?.email?.split('@')[0].toUpperCase() || 'HACKER') : 'GUEST'}
+                  {profile?.username || user?.email?.split('@')[0].toUpperCase() || 'HACKER'}
                 </ThemedText>
                 <ThemedText style={styles.levelText}>
-                  {isAuthenticated ? (profile?.title || 'Lvl 1 Hacker') : 'Not Connected (Tap to Login)'}
+                  {profile?.title || 'Lvl 1 Hacker'}
                 </ThemedText>
               </View>
             </Pressable>
@@ -100,7 +99,7 @@ export default function HomeScreen() {
               
               <View style={styles.questFooter}>
                 <ThemedText style={styles.questReward}>Reward: +{quests[0].xp_reward} EXP</ThemedText>
-                <Pressable onPress={() => handleStartQuiz(quests[0].target_category_id || 'mock')} style={styles.questButton}>
+                <Pressable onPress={() => handleStartQuiz('daily_mix')} style={styles.questButton}>
                   <ThemedText style={styles.questButtonText}>ENTER ARENA</ThemedText>
                 </Pressable>
               </View>

@@ -1,197 +1,225 @@
-import React, { useState } from 'react';
-import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Colors } from '@/constants/theme';
+import { supabase } from '@/lib/supabase';
 
-// Enable LayoutAnimation on Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+// LayoutAnimation is enabled by default in the New Architecture (Fabric)
 
-type FileItem = { id: string; title: string; type: 'doc' | 'exec'; xp: number; progress: number; isLocked?: boolean };
-type DirectoryItem = { id: string; title: string; desc: string; files: FileItem[] };
-
-const DIRECTORIES: DirectoryItem[] = [
-  {
-    id: 'cs_fundamentals',
-    title: '01_CS_FUNDAMENTALS',
-    desc: 'The core algorithms, data structures, and computer science basics needed for any developer.',
-    files: [
-      { id: 'f1', title: 'big_o_notation.txt', type: 'doc', xp: 10, progress: 100 },
-      { id: 'f2', title: 'arrays_and_strings.txt', type: 'doc', xp: 20, progress: 50 },
-      { id: 'f3', title: 'hash_maps.txt', type: 'doc', xp: 20, progress: 0 },
-      { id: 'f4', title: 'fundamental_assessment.exe', type: 'exec', xp: 100, progress: 0, isLocked: true },
-    ]
-  },
-  {
-    id: 'languages',
-    title: '02_PROGRAMMING_LANGUAGES',
-    desc: 'Choose your weapon. Deep dives into specific language syntax and OOP paradigms.',
-    files: [
-      { id: 'l1', title: 'java_oop_core.txt', type: 'doc', xp: 50, progress: 0 },
-      { id: 'l2', title: 'csharp_oop_core.txt', type: 'doc', xp: 50, progress: 0 },
-      { id: 'l3', title: 'python_basics.txt', type: 'doc', xp: 50, progress: 0 },
-      { id: 'l4', title: 'javascript_es6.txt', type: 'doc', xp: 50, progress: 0 },
-      { id: 'l5', title: 'cpp_memory_management.txt', type: 'doc', xp: 50, progress: 0 },
-    ]
-  },
-  {
-    id: 'frontend',
-    title: '03_FRONTEND_ENGINEERING',
-    desc: 'Master the browser. HTML, CSS, JavaScript, React, and Web Performance.',
-    files: [
-      { id: 'fe1', title: 'dom_manipulation.txt', type: 'doc', xp: 30, progress: 0 },
-      { id: 'fe2', title: 'react_hooks_deepdive.txt', type: 'doc', xp: 40, progress: 0 },
-      { id: 'fe3', title: 'css_grid_flexbox.txt', type: 'doc', xp: 30, progress: 0 },
-      { id: 'fe4', title: 'frontend_mastery.exe', type: 'exec', xp: 150, progress: 0, isLocked: true },
-    ]
-  },
-  {
-    id: 'backend',
-    title: '04_BACKEND_ENGINEERING',
-    desc: 'Server-side logic, API design, and frameworks specific to your chosen language.',
-    files: [
-      { id: 'be1', title: 'rest_api_principles.txt', type: 'doc', xp: 30, progress: 100 },
-      { id: 'be2', title: 'node_js_express.txt', type: 'doc', xp: 50, progress: 0 },
-      { id: 'be3', title: 'spring_boot_java.txt', type: 'doc', xp: 50, progress: 0 },
-      { id: 'be4', title: 'dotnet_core_csharp.txt', type: 'doc', xp: 50, progress: 0 },
-      { id: 'be5', title: 'django_python.txt', type: 'doc', xp: 50, progress: 0 },
-    ]
-  },
-  {
-    id: 'databases',
-    title: '05_DATABASES_AND_SQL',
-    desc: 'Data persistence, relational models, querying, and NoSQL alternatives.',
-    files: [
-      { id: 'db1', title: 'sql_joins_and_indexes.txt', type: 'doc', xp: 40, progress: 0 },
-      { id: 'db2', title: 'database_normalization.txt', type: 'doc', xp: 30, progress: 0 },
-      { id: 'db3', title: 'mongodb_basics.txt', type: 'doc', xp: 30, progress: 0 },
-    ]
-  },
-  {
-    id: 'system_design',
-    title: '06_SYSTEM_DESIGN',
-    desc: 'Architecting scalable applications. Load balancing, microservices, and cloud infra.',
-    files: [
-      { id: 'sd1', title: 'scaling_from_0_to_1m.txt', type: 'doc', xp: 50, progress: 0 },
-      { id: 'sd2', title: 'cap_theorem.txt', type: 'doc', xp: 30, progress: 0 },
-      { id: 'sd3', title: 'microservices_vs_monolith.txt', type: 'doc', xp: 40, progress: 0 },
-      { id: 'sd4', title: 'architect_certification.exe', type: 'exec', xp: 500, progress: 0, isLocked: true },
-    ]
-  }
-];
-
-const DirectoryCard = ({ dir, isExpanded, onToggle, onFilePress }: { dir: DirectoryItem, isExpanded: boolean, onToggle: () => void, onFilePress: (file: FileItem) => void }) => {
-  return (
-    <View style={styles.dirWrapper}>
-      {/* Directory Header */}
-      <Pressable onPress={onToggle} style={[styles.dirHeader, isExpanded && styles.dirHeaderActive]}>
-        <View style={styles.dirHeaderLeft}>
-          <FontAwesome5 
-            name={isExpanded ? "folder-open" : "folder"} 
-            size={20} 
-            color={isExpanded ? Colors.dark.primary : Colors.dark.textSecondary} 
-          />
-          <ThemedText style={[styles.dirTitle, isExpanded && { color: Colors.dark.primary }]}>
-            {dir.title}/
-          </ThemedText>
-        </View>
-        <FontAwesome5 
-          name={isExpanded ? "chevron-up" : "chevron-down"} 
-          size={16} 
-          color={Colors.dark.textSecondary} 
-        />
-      </Pressable>
-
-      {/* Directory Content (Files) */}
-      {isExpanded && (
-        <View style={styles.dirContent}>
-          <ThemedText style={styles.dirDesc}>// {dir.desc}</ThemedText>
-          
-          <View style={styles.fileList}>
-            {dir.files.map(file => (
-              <Pressable 
-                key={file.id} 
-                onPress={() => onFilePress(file)}
-                style={[styles.fileCard, file.isLocked && styles.fileCardLocked]}
-              >
-                <View style={styles.fileLeft}>
-                  <FontAwesome5 
-                    name={file.type === 'doc' ? 'file-alt' : 'terminal'} 
-                    size={16} 
-                    color={file.isLocked ? '#555' : (file.progress === 100 ? Colors.dark.primary : '#AAA')} 
-                  />
-                  <ThemedText style={[styles.fileTitle, file.isLocked && styles.textLocked, file.progress === 100 && styles.textCompleted]}>
-                    {file.title}
-                  </ThemedText>
-                </View>
-                
-                <View style={styles.fileRight}>
-                  {file.isLocked ? (
-                    <FontAwesome5 name="lock" size={14} color="#555" />
-                  ) : (
-                    <>
-                      <ThemedText style={styles.fileXp}>+{file.xp} XP</ThemedText>
-                      {file.progress > 0 && (
-                        <ThemedText style={[styles.fileProgress, file.progress === 100 && { color: Colors.dark.primary }]}>
-                          [{file.progress}%]
-                        </ThemedText>
-                      )}
-                    </>
-                  )}
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      )}
-    </View>
-  );
-};
+type FileItem = { id: string; title: string; desc: string; type: 'doc' | 'exec'; xp: number; progress: number; isLocked?: boolean };
+type DirectoryItem = { id: string; title: string; desc: string; icon: string; color: string; files: FileItem[] };
 
 export default function LearnScreen() {
   const router = useRouter();
-  const [expandedDirId, setExpandedDirId] = useState<string | null>(null);
+  const [directories, setDirectories] = useState<DirectoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [currentDirId, setCurrentDirId] = useState<string | null>(null);
 
-  const toggleDir = (id: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setExpandedDirId(prev => (prev === id ? null : id));
+  useEffect(() => {
+    fetchLearningData();
+  }, []);
+
+  const fetchLearningData = async () => {
+    try {
+      setLoading(true);
+      // Fetch all categories from the database
+      const { data: categoriesData, error: catError } = await supabase
+        .from('categories')
+        .select('*');
+        
+      if (catError) throw catError;
+
+      // Fetch all theory modules from the database
+      const { data: modulesData, error: modError } = await supabase
+        .from('learning_modules')
+        .select('*')
+        .order('order_index', { ascending: true });
+
+      if (modError) throw modError;
+
+      // Build the directory structure based on categories
+      const builtDirectories: DirectoryItem[] = categoriesData.map((cat: any) => {
+        const catModules = modulesData.filter((m: any) => m.category_id === cat.id);
+        
+        return {
+          id: cat.id,
+          title: cat.title,
+          desc: cat.description,
+          icon: cat.icon || 'folder',
+          color: cat.color || Colors.dark.primary,
+          files: catModules.map((m: any) => ({
+            id: m.id,
+            title: m.title,
+            desc: m.description,
+            type: m.type === 'theory' ? 'doc' : 'exec',
+            xp: m.xp_reward,
+            progress: 0,
+            isLocked: false,
+          }))
+        };
+      });
+
+      // Keep only categories that have at least one theory file defined
+      const activeDirectories = builtDirectories.filter(dir => dir.files.length > 0);
+      
+      setDirectories(activeDirectories);
+    } catch (error) {
+      console.error('Error fetching learning data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const navigateToDir = (id: string | null) => {
+    // Smooth fade & slide animation
+    LayoutAnimation.configureNext(
+      LayoutAnimation.create(300, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)
+    );
+    setCurrentDirId(id);
   };
 
   const handleFilePress = (file: FileItem) => {
     if (file.isLocked) return;
+    // router.push(`/lesson/${file.id}`)
   };
+
+  const activeDir = currentDirId ? directories.find(d => d.id === currentDirId) : null;
+
+  const coreIds = ['frontend', 'backend', 'database', 'algorithms'];
+  const coreDirectories = directories.filter(dir => coreIds.includes(dir.id));
+  const advancedDirectories = directories.filter(dir => !coreIds.includes(dir.id));
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      {/* Header-ul așezat ca în profile.tsx */}
+      {/* Header */}
       <View style={styles.header}>
         <ThemedText style={styles.title}>{'>'} KNOWLEDGE_BASE</ThemedText>
-        <ThemedText style={styles.subtitle}>// Browse directories to read theory files.</ThemedText>
+        <ThemedText style={styles.subtitle}>
+          {activeDir ? `// path: root/${activeDir.id}` : '// root/ - Select a directory to mount.'}
+        </ThemedText>
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.fileSystem}>
-          {DIRECTORIES.map(dir => (
-            <DirectoryCard
-              key={dir.id}
-              dir={dir}
-              isExpanded={expandedDirId === dir.id}
-              onToggle={() => toggleDir(dir.id)}
-              onFilePress={handleFilePress}
-            />
-          ))}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.dark.primary} />
+          <ThemedText style={styles.loadingText}>Fetching files from mainframe...</ThemedText>
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {!activeDir ? (
+            // ROOT LEVEL - SHOW DIRECTORIES
+            <View style={styles.grid}>
+              {coreDirectories.length > 0 && (
+                <View style={styles.groupContainer}>
+                  <ThemedText style={styles.groupTitle}>CORE INTERVIEW ESSENTIALS</ThemedText>
+                  <View style={styles.groupDivider} />
+                  <View style={styles.gridCardsContainer}>
+                    {coreDirectories.map(dir => (
+                      <Pressable key={dir.id} style={[styles.gridCard, { overflow: 'hidden' }]} onPress={() => navigateToDir(dir.id)}>
+                        <FontAwesome5 name={dir.icon as any} size={70} color={dir.color} style={styles.gridCardWatermark} />
+                        <View style={styles.gridCardIconWrapper}>
+                          <FontAwesome5 name={dir.icon as any} size={20} color={dir.color} />
+                        </View>
+                        <View style={styles.gridCardContent}>
+                          <ThemedText style={styles.gridCardTitle} numberOfLines={2}>{dir.title.toUpperCase()}</ThemedText>
+                          <ThemedText style={styles.gridCardSubtitle}>[ {dir.files.length} MODULES ]</ThemedText>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {advancedDirectories.length > 0 && (
+                <View style={styles.groupContainer}>
+                  <ThemedText style={styles.groupTitle}>ADVANCED TOPICS</ThemedText>
+                  <View style={styles.groupDivider} />
+                  <View style={styles.gridCardsContainer}>
+                    {advancedDirectories.map(dir => (
+                      <Pressable key={dir.id} style={[styles.gridCard, { overflow: 'hidden' }]} onPress={() => navigateToDir(dir.id)}>
+                        <FontAwesome5 name={dir.icon as any} size={70} color={dir.color} style={styles.gridCardWatermark} />
+                        <View style={styles.gridCardIconWrapper}>
+                          <FontAwesome5 name={dir.icon as any} size={20} color={dir.color} />
+                        </View>
+                        <View style={styles.gridCardContent}>
+                          <ThemedText style={styles.gridCardTitle} numberOfLines={2}>{dir.title.toUpperCase()}</ThemedText>
+                          <ThemedText style={styles.gridCardSubtitle}>[ {dir.files.length} MODULES ]</ThemedText>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </View>
+          ) : (
+            // DIRECTORY LEVEL - SHOW FILES
+            <View style={styles.fileSystem}>
+              
+              {/* CD .. BACK BUTTON */}
+              <Pressable style={styles.backButton} onPress={() => navigateToDir(null)}>
+                <FontAwesome5 name="chevron-left" size={14} color={Colors.dark.primary} />
+                <ThemedText style={styles.backButtonText}>cd ..</ThemedText>
+              </Pressable>
+
+              <View style={styles.activeDirHeader}>
+                <ThemedText style={styles.activeDirTitle}>{activeDir.title}/</ThemedText>
+                <ThemedText style={styles.dirDesc}>// {activeDir.desc}</ThemedText>
+              </View>
+              
+              <View style={styles.fileList}>
+                {activeDir.files.map(file => (
+                  <Pressable 
+                    key={file.id} 
+                    onPress={() => handleFilePress(file)}
+                    style={[styles.fileCard, file.isLocked && styles.fileCardLocked]}
+                  >
+                    <View style={styles.fileMain}>
+                      <View style={styles.fileHeader}>
+                        <View style={styles.fileLeft}>
+                          <FontAwesome5 
+                            name={file.type === 'doc' ? 'file-alt' : 'terminal'} 
+                            size={16} 
+                            color={file.isLocked ? '#555' : (file.progress === 100 ? Colors.dark.primary : '#AAA')} 
+                          />
+                          <ThemedText style={[styles.fileTitle, file.isLocked && styles.textLocked, file.progress === 100 && styles.textCompleted]}>
+                            {file.title}
+                          </ThemedText>
+                        </View>
+                        
+                        <View style={styles.fileRight}>
+                          {file.isLocked ? (
+                            <FontAwesome5 name="lock" size={14} color="#555" />
+                          ) : (
+                            <>
+                              <ThemedText style={styles.fileXp}>+{file.xp} XP</ThemedText>
+                              {file.progress > 0 && (
+                                <ThemedText style={[styles.fileProgress, file.progress === 100 && { color: Colors.dark.primary }]}>
+                                  [{file.progress}%]
+                                </ThemedText>
+                              )}
+                            </>
+                          )}
+                        </View>
+                      </View>
+                      {/* Warm description displayed here below the file title */}
+                      <ThemedText style={styles.fileDesc}>{file.desc}</ThemedText>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -201,13 +229,13 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   scrollContent: { 
     paddingHorizontal: 24, 
-    paddingBottom: 120, // Enough padding for bottom nav
+    paddingBottom: 120, 
     flexGrow: 1 
   },
   
   header: { 
     paddingHorizontal: 24, 
-    paddingTop: 30, // Pushed down like profile.tsx
+    paddingTop: 30,
     paddingBottom: 20,
     borderBottomWidth: 1, 
     borderBottomColor: '#222',
@@ -216,60 +244,141 @@ const styles = StyleSheet.create({
   title: { fontFamily: 'VT323_400Regular', fontSize: 32, letterSpacing: 2, color: Colors.dark.primary, marginBottom: 5 },
   subtitle: { fontSize: 16, color: '#888', fontStyle: 'italic', fontFamily: 'VT323_400Regular' },
   
-  fileSystem: {
-    gap: 15, // Space between folders
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 15,
+    marginTop: 50
+  },
+  loadingText: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    color: '#888'
+  },
+
+  grid: {
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
   
-  dirWrapper: {
+  groupContainer: {
+    marginBottom: 35,
+    gap: 12,
+  },
+  groupTitle: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 22,
+    color: Colors.dark.primary,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  groupDivider: {
+    height: 1,
+    backgroundColor: Colors.dark.primary,
+    opacity: 0.3,
+    marginTop: -5,
+    marginBottom: 10,
+  },
+
+  gridCardsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  gridCard: {
+    width: '48%',
+    backgroundColor: '#121212',
     borderWidth: 1,
     borderColor: '#333',
-    backgroundColor: '#111',
-    borderRadius: 0,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'flex-start',
+    gap: 12,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  dirHeader: {
-    flexDirection: 'row',
+  gridCardWatermark: {
+    position: 'absolute',
+    right: -10,
+    bottom: -10,
+    opacity: 0.08,
+    transform: [{ rotate: '-15deg' }],
+  },
+  gridCardIconWrapper: {
+    width: 38,
+    height: 38,
+    backgroundColor: '#1E1E1E',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 4,
+    justifyContent: 'center',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 15,
-    backgroundColor: '#151515',
   },
-  dirHeaderActive: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-    backgroundColor: '#1a1a1a',
+  gridCardContent: {
+    gap: 4,
   },
-  dirHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 15,
-  },
-  dirTitle: {
+  gridCardTitle: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 20,
+    fontSize: 18,
     color: '#DDD',
     letterSpacing: 1,
+    lineHeight: 20,
+  },
+  gridCardSubtitle: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    fontFamily: 'VT323_400Regular',
+    letterSpacing: 1,
+  },
+
+  fileSystem: {
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
   },
   
-  dirContent: {
-    padding: 15,
-    gap: 15,
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    backgroundColor: '#1a1a1a',
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#333',
+    marginBottom: 20,
+  },
+  backButtonText: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    color: Colors.dark.primary,
+    letterSpacing: 1,
+  },
+
+  activeDirHeader: {
+    marginBottom: 20,
+  },
+  activeDirTitle: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 24,
+    color: '#DDD',
+    letterSpacing: 1,
+    marginBottom: 5,
   },
   dirDesc: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#888',
-    marginBottom: 5,
+    lineHeight: 20,
   },
   
   fileList: {
     gap: 10,
   },
   fileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     padding: 15,
     backgroundColor: '#0a0a0a',
     borderWidth: 1,
@@ -281,15 +390,29 @@ const styles = StyleSheet.create({
     borderColor: '#1a1a1a',
     backgroundColor: '#0f0f0f',
   },
+  fileMain: {
+    gap: 8,
+  },
+  fileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   fileLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 15,
+    gap: 10,
   },
   fileTitle: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 18,
+    fontSize: 20,
     color: '#CCC',
+  },
+  fileDesc: {
+    fontSize: 13,
+    color: '#777',
+    paddingLeft: 26, // Liniat cu textul, nu cu iconița
+    lineHeight: 18,
   },
   textLocked: {
     color: '#555',

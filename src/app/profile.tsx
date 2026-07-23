@@ -130,14 +130,6 @@ export default function ProfileScreen() {
     await refreshProfile();
   };
 
-  const handleEmailLogin = async () => {
-    if (!email || !password) return Alert.alert('Error', 'Enter email and password!');
-    setIsLoggingIn(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) Alert.alert('Login Error', error.message);
-    setIsLoggingIn(false);
-  };
-
   const handleLogout = async () => {
     try {
       await GoogleSignin.signOut();
@@ -145,33 +137,6 @@ export default function ProfileScreen() {
       // ignore error if not logged in with google
     }
     await supabase.auth.signOut();
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      setIsLoggingIn(true);
-      await GoogleSignin.hasPlayServices();
-      
-      const userInfo = await GoogleSignin.signIn();
-      const idToken = userInfo.data?.idToken;
-
-      if (idToken) {
-        const { data, error } = await supabase.auth.signInWithIdToken({
-          provider: 'google',
-          token: idToken,
-        });
-
-        if (error) throw error;
-      } else {
-        throw new Error('Nu s-a putut genera token-ul de securitate de la Google.');
-      }
-    } catch (error: any) {
-      if (error.code !== 'SIGN_IN_CANCELLED') {
-        Alert.alert('Eroare Autentificare', error.message || 'A apărut o eroare necunoscută.');
-      }
-    } finally {
-      setIsLoggingIn(false);
-    }
   };
 
   if (isLoading) {
@@ -197,48 +162,7 @@ export default function ProfileScreen() {
       </View>
 
       <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: isEditing ? 120 : 100, flexGrow: 1 }} showsVerticalScrollIndicator={false}>
-        {!isAuthenticated ? (
-          // === INTERFAȚA DE LOGIN (GUEST) ===
-          <View style={styles.content}>
-            <Text style={styles.title}>ACCESS_RESTRICTED</Text>
-            <Text style={styles.subtitle}>// Identify yourself to the mainframe.</Text>
-
-            <View style={styles.formContainer}>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Hacker Email"
-                placeholderTextColor="#555"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-              />
-              <TextInput
-                style={styles.textInput}
-                placeholder="Password (Encrypted)"
-                placeholderTextColor="#555"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-
-              <TouchableOpacity style={styles.btnPrimary} onPress={handleEmailLogin} disabled={isLoggingIn}>
-                <Text style={styles.btnPrimaryText}>{isLoggingIn ? '...' : '[ LOGIN ]'}</Text>
-              </TouchableOpacity>
-
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>OR</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <TouchableOpacity style={styles.googleBtn} onPress={handleGoogleLogin} disabled={isLoggingIn}>
-                <FontAwesome5 name="google" size={18} color="#fff" />
-                <Text style={styles.googleBtnText}>[ SIGN IN WITH GOOGLE ]</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          // === INTERFAȚA DE PROFIL (LOGAT) ===
+          {/* === PROFILE INTERFACE (LOGGED IN) === */}
           <View style={[styles.content, !isEditing && { paddingBottom: 10 }]}>
             <View style={[styles.profileCard, !isEditing && { padding: 16, marginTop: 10 }]}>
               <TouchableOpacity 
@@ -388,7 +312,6 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             )}
           </View>
-        )}
       </ScrollView>
 
       {/* AVATAR SELECTOR MODAL */}
