@@ -1,122 +1,316 @@
-import React from 'react';
-import { StyleSheet, ScrollView, View, Pressable, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useState } from 'react';
+import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing, Colors } from '@/constants/theme';
+import { MaxContentWidth, Colors } from '@/constants/theme';
 
-export default function LearnScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
-  };
-  const router = useRouter();
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
-  const mockCurriculum = [
-    { id: '1', title: 'Data Structures 101', type: 'THEORY', xp: 20, completed: true },
-    { id: '2', title: 'Big O Notation', type: 'THEORY', xp: 20, completed: true },
-    { id: '3', title: 'Arrays & Strings', type: 'QUIZ', xp: 50, completed: false },
-    { id: '4', title: 'Two Pointers Technique', type: 'THEORY', xp: 20, completed: false },
-  ];
+type FileItem = { id: string; title: string; type: 'doc' | 'exec'; xp: number; progress: number; isLocked?: boolean };
+type DirectoryItem = { id: string; title: string; desc: string; files: FileItem[] };
 
+const DIRECTORIES: DirectoryItem[] = [
+  {
+    id: 'cs_fundamentals',
+    title: '01_CS_FUNDAMENTALS',
+    desc: 'The core algorithms, data structures, and computer science basics needed for any developer.',
+    files: [
+      { id: 'f1', title: 'big_o_notation.txt', type: 'doc', xp: 10, progress: 100 },
+      { id: 'f2', title: 'arrays_and_strings.txt', type: 'doc', xp: 20, progress: 50 },
+      { id: 'f3', title: 'hash_maps.txt', type: 'doc', xp: 20, progress: 0 },
+      { id: 'f4', title: 'fundamental_assessment.exe', type: 'exec', xp: 100, progress: 0, isLocked: true },
+    ]
+  },
+  {
+    id: 'languages',
+    title: '02_PROGRAMMING_LANGUAGES',
+    desc: 'Choose your weapon. Deep dives into specific language syntax and OOP paradigms.',
+    files: [
+      { id: 'l1', title: 'java_oop_core.txt', type: 'doc', xp: 50, progress: 0 },
+      { id: 'l2', title: 'csharp_oop_core.txt', type: 'doc', xp: 50, progress: 0 },
+      { id: 'l3', title: 'python_basics.txt', type: 'doc', xp: 50, progress: 0 },
+      { id: 'l4', title: 'javascript_es6.txt', type: 'doc', xp: 50, progress: 0 },
+      { id: 'l5', title: 'cpp_memory_management.txt', type: 'doc', xp: 50, progress: 0 },
+    ]
+  },
+  {
+    id: 'frontend',
+    title: '03_FRONTEND_ENGINEERING',
+    desc: 'Master the browser. HTML, CSS, JavaScript, React, and Web Performance.',
+    files: [
+      { id: 'fe1', title: 'dom_manipulation.txt', type: 'doc', xp: 30, progress: 0 },
+      { id: 'fe2', title: 'react_hooks_deepdive.txt', type: 'doc', xp: 40, progress: 0 },
+      { id: 'fe3', title: 'css_grid_flexbox.txt', type: 'doc', xp: 30, progress: 0 },
+      { id: 'fe4', title: 'frontend_mastery.exe', type: 'exec', xp: 150, progress: 0, isLocked: true },
+    ]
+  },
+  {
+    id: 'backend',
+    title: '04_BACKEND_ENGINEERING',
+    desc: 'Server-side logic, API design, and frameworks specific to your chosen language.',
+    files: [
+      { id: 'be1', title: 'rest_api_principles.txt', type: 'doc', xp: 30, progress: 100 },
+      { id: 'be2', title: 'node_js_express.txt', type: 'doc', xp: 50, progress: 0 },
+      { id: 'be3', title: 'spring_boot_java.txt', type: 'doc', xp: 50, progress: 0 },
+      { id: 'be4', title: 'dotnet_core_csharp.txt', type: 'doc', xp: 50, progress: 0 },
+      { id: 'be5', title: 'django_python.txt', type: 'doc', xp: 50, progress: 0 },
+    ]
+  },
+  {
+    id: 'databases',
+    title: '05_DATABASES_AND_SQL',
+    desc: 'Data persistence, relational models, querying, and NoSQL alternatives.',
+    files: [
+      { id: 'db1', title: 'sql_joins_and_indexes.txt', type: 'doc', xp: 40, progress: 0 },
+      { id: 'db2', title: 'database_normalization.txt', type: 'doc', xp: 30, progress: 0 },
+      { id: 'db3', title: 'mongodb_basics.txt', type: 'doc', xp: 30, progress: 0 },
+    ]
+  },
+  {
+    id: 'system_design',
+    title: '06_SYSTEM_DESIGN',
+    desc: 'Architecting scalable applications. Load balancing, microservices, and cloud infra.',
+    files: [
+      { id: 'sd1', title: 'scaling_from_0_to_1m.txt', type: 'doc', xp: 50, progress: 0 },
+      { id: 'sd2', title: 'cap_theorem.txt', type: 'doc', xp: 30, progress: 0 },
+      { id: 'sd3', title: 'microservices_vs_monolith.txt', type: 'doc', xp: 40, progress: 0 },
+      { id: 'sd4', title: 'architect_certification.exe', type: 'exec', xp: 500, progress: 0, isLocked: true },
+    ]
+  }
+];
+
+const DirectoryCard = ({ dir, isExpanded, onToggle, onFilePress }: { dir: DirectoryItem, isExpanded: boolean, onToggle: () => void, onFilePress: (file: FileItem) => void }) => {
   return (
-    <ScrollView
-      style={styles.scrollView}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, Platform.select({ web: { paddingTop: 80, paddingBottom: 80 } })]}
-      showsVerticalScrollIndicator={false}
-    >
-      <ThemedView style={styles.container}>
-        
-        <View style={styles.header}>
-          <ThemedText type="subtitle" style={styles.title}>> CURRICULUM_SYS</ThemedText>
-          <ThemedText type="small" style={styles.subtitle}>Initialize learning sequence...</ThemedText>
+    <View style={styles.dirWrapper}>
+      {/* Directory Header */}
+      <Pressable onPress={onToggle} style={[styles.dirHeader, isExpanded && styles.dirHeaderActive]}>
+        <View style={styles.dirHeaderLeft}>
+          <FontAwesome5 
+            name={isExpanded ? "folder-open" : "folder"} 
+            size={20} 
+            color={isExpanded ? Colors.dark.primary : Colors.dark.textSecondary} 
+          />
+          <ThemedText style={[styles.dirTitle, isExpanded && { color: Colors.dark.primary }]}>
+            {dir.title}/
+          </ThemedText>
         </View>
+        <FontAwesome5 
+          name={isExpanded ? "chevron-up" : "chevron-down"} 
+          size={16} 
+          color={Colors.dark.textSecondary} 
+        />
+      </Pressable>
 
-        <View style={styles.courseSelect}>
-          <ThemedText style={styles.courseLabel}>CURRENT MODULE:</ThemedText>
-          <View style={styles.courseDropdown}>
-            <ThemedText style={styles.courseDropdownText}>[ ALGORITHMS & DATA STRUCTS ]</ThemedText>
-            <FontAwesome5 name="caret-down" size={16} color={Colors.dark.primary} />
+      {/* Directory Content (Files) */}
+      {isExpanded && (
+        <View style={styles.dirContent}>
+          <ThemedText style={styles.dirDesc}>// {dir.desc}</ThemedText>
+          
+          <View style={styles.fileList}>
+            {dir.files.map(file => (
+              <Pressable 
+                key={file.id} 
+                onPress={() => onFilePress(file)}
+                style={[styles.fileCard, file.isLocked && styles.fileCardLocked]}
+              >
+                <View style={styles.fileLeft}>
+                  <FontAwesome5 
+                    name={file.type === 'doc' ? 'file-alt' : 'terminal'} 
+                    size={16} 
+                    color={file.isLocked ? '#555' : (file.progress === 100 ? Colors.dark.primary : '#AAA')} 
+                  />
+                  <ThemedText style={[styles.fileTitle, file.isLocked && styles.textLocked, file.progress === 100 && styles.textCompleted]}>
+                    {file.title}
+                  </ThemedText>
+                </View>
+                
+                <View style={styles.fileRight}>
+                  {file.isLocked ? (
+                    <FontAwesome5 name="lock" size={14} color="#555" />
+                  ) : (
+                    <>
+                      <ThemedText style={styles.fileXp}>+{file.xp} XP</ThemedText>
+                      {file.progress > 0 && (
+                        <ThemedText style={[styles.fileProgress, file.progress === 100 && { color: Colors.dark.primary }]}>
+                          [{file.progress}%]
+                        </ThemedText>
+                      )}
+                    </>
+                  )}
+                </View>
+              </Pressable>
+            ))}
           </View>
         </View>
+      )}
+    </View>
+  );
+};
 
-        <View style={styles.timeline}>
-          {mockCurriculum.map((lesson, index) => (
-            <View key={lesson.id} style={styles.timelineNode}>
-              <View style={styles.nodeLeft}>
-                <View style={[styles.circle, lesson.completed && styles.circleCompleted]}>
-                  {lesson.completed && <FontAwesome5 name="check" size={12} color="#000" />}
-                </View>
-                {index !== mockCurriculum.length - 1 && (
-                  <View style={[styles.line, lesson.completed && styles.lineCompleted]} />
-                )}
-              </View>
-              
-              <Pressable 
-                style={[styles.lessonCard, lesson.completed && styles.lessonCardCompleted]}
-                onPress={() => router.push(`/quiz?category=algorithms`)}
-              >
-                <View style={styles.lessonHeader}>
-                  <ThemedText style={[styles.lessonType, lesson.completed && styles.textCompleted]}>
-                    {lesson.type}
-                  </ThemedText>
-                  <ThemedText style={[styles.lessonXp, lesson.completed && styles.textCompleted]}>
-                    +{lesson.xp} XP
-                  </ThemedText>
-                </View>
-                <ThemedText type="subtitle" style={[styles.lessonTitle, lesson.completed && styles.textCompleted]}>
-                  {lesson.title}
-                </ThemedText>
-              </Pressable>
-            </View>
+export default function LearnScreen() {
+  const router = useRouter();
+  const [expandedDirId, setExpandedDirId] = useState<string | null>(null);
+
+  const toggleDir = (id: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedDirId(prev => (prev === id ? null : id));
+  };
+
+  const handleFilePress = (file: FileItem) => {
+    if (file.isLocked) return;
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      {/* Header-ul așezat ca în profile.tsx */}
+      <View style={styles.header}>
+        <ThemedText style={styles.title}>{'>'} KNOWLEDGE_BASE</ThemedText>
+        <ThemedText style={styles.subtitle}>// Browse directories to read theory files.</ThemedText>
+      </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.fileSystem}>
+          {DIRECTORIES.map(dir => (
+            <DirectoryCard
+              key={dir.id}
+              dir={dir}
+              isExpanded={expandedDirId === dir.id}
+              onToggle={() => toggleDir(dir.id)}
+              onFilePress={handleFilePress}
+            />
           ))}
         </View>
-
-      </ThemedView>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: { flex: 1, backgroundColor: Colors.dark.background },
-  contentContainer: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: Spacing.three },
-  container: { maxWidth: MaxContentWidth, flexGrow: 1, gap: Spacing.four, width: '100%' },
-  header: { gap: Spacing.half, marginTop: Spacing.two, borderBottomWidth: 1, borderBottomColor: '#333333', paddingBottom: Spacing.two },
-  title: { fontFamily: 'VT323_400Regular', fontSize: 24, letterSpacing: 2, color: Colors.dark.primary },
-  subtitle: { fontFamily: 'VT323_400Regular', opacity: 0.7, fontSize: 16, color: Colors.dark.textSecondary },
+  safeArea: { flex: 1, backgroundColor: Colors.dark.background },
+  scrollView: { flex: 1 },
+  scrollContent: { 
+    paddingHorizontal: 24, 
+    paddingBottom: 120, // Enough padding for bottom nav
+    flexGrow: 1 
+  },
   
-  courseSelect: { gap: Spacing.one },
-  courseLabel: { fontFamily: 'VT323_400Regular', color: Colors.dark.textSecondary, fontSize: 16 },
-  courseDropdown: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: Spacing.three, borderWidth: 1, borderColor: Colors.dark.primary, backgroundColor: '#111',
+  header: { 
+    paddingHorizontal: 24, 
+    paddingTop: 30, // Pushed down like profile.tsx
+    paddingBottom: 20,
+    borderBottomWidth: 1, 
+    borderBottomColor: '#222',
+    marginBottom: 20
   },
-  courseDropdownText: { fontFamily: 'VT323_400Regular', color: Colors.dark.primary, fontSize: 18, letterSpacing: 1 },
-
-  timeline: { marginTop: Spacing.two, gap: 0 },
-  timelineNode: { flexDirection: 'row', gap: Spacing.three },
-  nodeLeft: { alignItems: 'center', width: 30 },
-  circle: {
-    width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#333',
-    backgroundColor: '#111', justifyContent: 'center', alignItems: 'center', zIndex: 2
-  },
-  circleCompleted: { borderColor: Colors.dark.primary, backgroundColor: Colors.dark.primary },
-  line: { width: 2, flex: 1, backgroundColor: '#333', marginTop: -4, marginBottom: -4, zIndex: 1 },
-  lineCompleted: { backgroundColor: Colors.dark.primary },
+  title: { fontFamily: 'VT323_400Regular', fontSize: 32, letterSpacing: 2, color: Colors.dark.primary, marginBottom: 5 },
+  subtitle: { fontSize: 16, color: '#888', fontStyle: 'italic', fontFamily: 'VT323_400Regular' },
   
-  lessonCard: {
-    flex: 1, padding: Spacing.three, borderWidth: 1, borderColor: '#333',
-    backgroundColor: '#151515', marginBottom: Spacing.four,
+  fileSystem: {
+    gap: 15, // Space between folders
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
   },
-  lessonCardCompleted: { borderColor: Colors.dark.primary, backgroundColor: '#112211' },
-  lessonHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.one },
-  lessonType: { fontFamily: 'VT323_400Regular', color: Colors.dark.textSecondary, letterSpacing: 1 },
-  lessonXp: { fontFamily: 'VT323_400Regular', color: '#F59E0B' }, // amber
-  lessonTitle: { fontFamily: 'VT323_400Regular', fontSize: 20, color: '#FFFFFF' },
-  textCompleted: { color: Colors.dark.primary, opacity: 0.8 },
+  
+  dirWrapper: {
+    borderWidth: 1,
+    borderColor: '#333',
+    backgroundColor: '#111',
+    borderRadius: 0,
+  },
+  dirHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 15,
+    backgroundColor: '#151515',
+  },
+  dirHeaderActive: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    backgroundColor: '#1a1a1a',
+  },
+  dirHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  dirTitle: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 20,
+    color: '#DDD',
+    letterSpacing: 1,
+  },
+  
+  dirContent: {
+    padding: 15,
+    gap: 15,
+  },
+  dirDesc: {
+    fontSize: 13,
+    color: '#888',
+    marginBottom: 5,
+  },
+  
+  fileList: {
+    gap: 10,
+  },
+  fileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 15,
+    backgroundColor: '#0a0a0a',
+    borderWidth: 1,
+    borderColor: '#222',
+    borderRadius: 0,
+  },
+  fileCardLocked: {
+    opacity: 0.6,
+    borderColor: '#1a1a1a',
+    backgroundColor: '#0f0f0f',
+  },
+  fileLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  fileTitle: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    color: '#CCC',
+  },
+  textLocked: {
+    color: '#555',
+  },
+  textCompleted: {
+    color: Colors.dark.primary,
+  },
+  
+  fileRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  fileXp: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 16,
+    color: '#F59E0B',
+  },
+  fileProgress: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 16,
+    color: '#888',
+  },
 });

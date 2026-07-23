@@ -36,7 +36,7 @@ export default function LeaderboardScreen() {
       <ThemedView style={styles.container}>
         
         <View style={styles.header}>
-          <ThemedText type="subtitle" style={styles.title}>> GLOBAL_RANKINGS</ThemedText>
+          <ThemedText type="subtitle" style={styles.title}>{'>'} GLOBAL_RANKINGS</ThemedText>
           <ThemedText type="small" style={styles.subtitle}>Fetching top operatives from mainframe...</ThemedText>
         </View>
 

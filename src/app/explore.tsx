@@ -92,7 +92,7 @@ export default function StatsScreen() {
         
         {/* Title */}
         <View style={styles.header}>
-          <ThemedText type="subtitle" style={styles.title}>> USER_STATS_LOG</ThemedText>
+          <ThemedText type="subtitle" style={styles.title}>{'>'} USER_STATS_LOG</ThemedText>
           <ThemedText type="small" style={styles.subtitle}>Tracking career progression vectors...</ThemedText>
         </View>
 
@@ -119,7 +119,7 @@ export default function StatsScreen() {
 
         {/* Category Performance Bars */}
         <View style={styles.section}>
-          <ThemedText type="smallBold" style={styles.sectionTitle}>> CATEGORY_MASTERY</ThemedText>
+          <ThemedText type="smallBold" style={styles.sectionTitle}>{'>'} CATEGORY_MASTERY</ThemedText>
           <ThemedView type="backgroundElement" style={styles.cardBlock}>
             {categories.map((category) => {
               const progress = getCategoryProgress(category.id);
@@ -147,7 +147,7 @@ export default function StatsScreen() {
 
         {/* Unlocked Achievements list */}
         <View style={styles.section}>
-          <ThemedText type="smallBold" style={styles.sectionTitle}>> ACHIEVEMENTS_UNLOCKED</ThemedText>
+          <ThemedText type="smallBold" style={styles.sectionTitle}>{'>'} ACHIEVEMENTS_UNLOCKED</ThemedText>
           <View style={styles.achievementsGrid}>
             {achievements.map((ach) => (
               <ThemedView 

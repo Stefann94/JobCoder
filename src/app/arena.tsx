@@ -26,7 +26,7 @@ export default function ArenaScreen() {
       <ThemedView style={styles.container}>
         
         <View style={styles.header}>
-          <ThemedText type="subtitle" style={styles.title}>> THE_ARENA</ThemedText>
+          <ThemedText type="subtitle" style={styles.title}>{'>'} THE_ARENA</ThemedText>
           <ThemedText type="small" style={styles.subtitle}>Select your combat protocol...</ThemedText>
         </View>
 

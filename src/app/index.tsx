@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   },
   questTitle: {
     fontFamily: 'VT323_400Regular',
-    color: Colors.dark.warning,
+    color: Colors.dark.primary,
     fontSize: 24,
     letterSpacing: 2,
   },
@@ -357,12 +357,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   skillTitle: {
-    fontWeight: '700',
-    fontSize: 14,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    color: '#DDDDDD',
+    letterSpacing: 1,
   },
   skillLevel: {
+    fontFamily: 'VT323_400Regular',
     color: Colors.dark.textSecondary,
-    fontSize: 12,
+    fontSize: 14,
   },
   progressTrack: {
     height: 8,
@@ -406,8 +409,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   bossTitle: {
-    fontWeight: '700',
-    fontSize: 14,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    color: Colors.dark.danger,
+    letterSpacing: 1,
   },
   bossSubtitle: {
     color: Colors.dark.textSecondary,

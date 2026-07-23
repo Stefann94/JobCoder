@@ -49,6 +49,7 @@ export default function TabLayout() {
               <AnimatedSplashOverlay />
               <Tabs 
                 screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: Colors.dark.background } }}
+                // @ts-expect-error type mismatch between Expo Router and react-navigation
                 tabBar={(props) => <AppTabs {...props} />}
               >
                 <Tabs.Screen name="index" />
