@@ -5,13 +5,19 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { QUESTIONS, Question, CATEGORIES } from '@/constants/questions';
+import { useAuth } from '@/providers/AuthProvider';
+import { useProgress } from '@/providers/ProgressProvider';
+import { fetchQuestionsByCategory, Question, fetchCategories, Category, addXpToProfile } from '@/lib/api';
 import { Spacing, MaxContentWidth } from '@/constants/theme';
 
 export default function QuizScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const categoryId = params.category as string;
+
+  const { user } = useAuth();
+  const { progress, updateProgress } = useProgress();
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -23,16 +29,13 @@ export default function QuizScreen() {
 
   // Setup the questions based on navigation parameters
   useEffect(() => {
-    let selected: Question[] = [];
-    if (categoryId === 'mock') {
-      // Shuffle and pick 10 random questions (or max available)
-      const shuffled = [...QUESTIONS].sort(() => 0.5 - Math.random());
-      selected = shuffled.slice(0, 10);
-    } else {
-      // Filter by specific category
-      selected = QUESTIONS.filter((q) => q.category === categoryId);
-    }
-    setQuizQuestions(selected);
+    const loadData = async () => {
+      const fetchedCats = await fetchCategories();
+      setCategories(fetchedCats);
+      const fetchedQs = await fetchQuestionsByCategory(categoryId);
+      setQuizQuestions(fetchedQs);
+    };
+    loadData();
   }, [categoryId]);
 
   const handleOptionSelect = (optionId: string, isCorrect: boolean) => {
@@ -47,13 +50,27 @@ export default function QuizScreen() {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentIndex < quizQuestions.length - 1) {
       setCurrentIndex((prev) => prev + 1);
       setSelectedOptionId(null);
       setIsAnswered(false);
     } else {
+      // Finish Quiz
       setQuizCompleted(true);
+      if (user && categoryId !== 'mock') {
+        const correctPercentage = (score / quizQuestions.length) * 100;
+        const currentProgress = progress[categoryId]?.progress_percent || 0;
+        
+        // Creștem progresul (cu maxim 20% per quiz, plafonat la 100)
+        const newProgress = Math.min(100, currentProgress + Math.floor(correctPercentage / 5));
+        
+        await updateProgress(categoryId, newProgress, []);
+      }
+      
+      if (user && xpEarned > 0) {
+        await addXpToProfile(user.id, xpEarned);
+      }
     }
   };
 
@@ -80,7 +97,7 @@ export default function QuizScreen() {
 
   const currentQuestion = quizQuestions[currentIndex];
   const progressPercent = ((currentIndex) / quizQuestions.length) * 100;
-  const currentCategory = CATEGORIES.find((c) => c.id === currentQuestion.category);
+  const currentCategory = categories.find((c) => c.id === currentQuestion.category_id);
 
   // Score Screen View
   if (quizCompleted) {

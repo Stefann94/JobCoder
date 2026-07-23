@@ -24,38 +24,38 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
           onPress={() => navigation.navigate('index')} 
         />
 
-        {/* Learn Tab (Dummy) */}
+        {/* Learn Tab */}
         <TabButton 
           icon="book" 
           label="Learn" 
-          isFocused={false} 
-          onPress={() => {}} 
+          isFocused={state.index === 1} // Assuming index 1
+          onPress={() => navigation.navigate('learn')} 
         />
 
         {/* Center Glowing Code Button */}
         <Pressable 
           style={styles.centerButtonWrapper}
-          onPress={() => router.push('/quiz?category=mock')}
+          onPress={() => router.push('/arena')}
         >
           <View style={styles.centerButtonGlow}>
             <FontAwesome5 name="code" size={24} color="#000000" />
           </View>
-          <ThemedText style={styles.centerButtonLabel}>Code</ThemedText>
+          <ThemedText style={styles.centerButtonLabel}>Arena</ThemedText>
         </Pressable>
 
-        {/* Leaderboard Tab (Dummy for now) */}
+        {/* Leaderboard Tab */}
         <TabButton 
           icon="trophy" 
           label="Rank" 
-          isFocused={false} 
-          onPress={() => {}} 
+          isFocused={state.index === 2} // Assuming index 2
+          onPress={() => navigation.navigate('leaderboard')} 
         />
 
         {/* Stats Tab */}
         <TabButton 
           icon="bar-chart" 
           label="Stats" 
-          isFocused={state.index === 1} 
+          isFocused={state.index === 3} 
           onPress={() => navigation.navigate('explore')} 
         />
 

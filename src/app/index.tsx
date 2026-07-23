@@ -7,14 +7,18 @@ import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing, MaxContentWidth, Colors } from '@/constants/theme';
-import { fetchCategories, Category } from '@/lib/api';
+import { fetchCategories, Category, fetchDailyQuests, DailyQuest, fetchBossFights, BossFight } from '@/lib/api';
 import { useAuth } from '@/providers/AuthProvider';
+import { useProgress } from '@/providers/ProgressProvider';
 import AvatarRenderer from '@/components/avatar-renderer';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user, profile, isAuthenticated } = useAuth();
+  const { progress } = useProgress();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [quests, setQuests] = useState<DailyQuest[]>([]);
+  const [bosses, setBosses] = useState<BossFight[]>([]);
   const [loading, setLoading] = useState(true);
 
   const webPadding = Platform.select({ web: { paddingTop: 80 }, default: {} });
@@ -23,10 +27,21 @@ export default function HomeScreen() {
     async function loadData() {
       const data = await fetchCategories();
       setCategories(data);
+      const questsData = await fetchDailyQuests();
+      setQuests(questsData);
+      const bossesData = await fetchBossFights();
+      setBosses(bossesData);
       setLoading(false);
     }
     loadData();
   }, []);
+
+  const groupedCategories = categories.reduce((acc, cat) => {
+    const group = cat.group_name || 'General';
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(cat);
+    return acc;
+  }, {} as Record<string, Category[]>);
 
   const handleStartMock = () => {
     router.push({
@@ -72,23 +87,25 @@ export default function HomeScreen() {
           </View>
 
           {/* Daily Quest Card */}
-          <View style={styles.questCard}>
-            <FontAwesome5 name="skull" size={100} color="#333333" style={styles.questWatermark} />
-            <View style={styles.questHeader}>
-              <FontAwesome name="warning" size={16} color={Colors.dark.warning} />
-              <ThemedText style={styles.questTitle}>Daily Quest</ThemedText>
+          {quests.length > 0 && (
+            <View style={styles.questCard}>
+              <FontAwesome5 name="skull" size={100} color="#333333" style={styles.questWatermark} />
+              <View style={styles.questHeader}>
+                <FontAwesome name="warning" size={16} color={Colors.dark.warning} />
+                <ThemedText style={styles.questTitle}>{quests[0].title}</ThemedText>
+              </View>
+              <ThemedText style={styles.questDescription}>
+                {quests[0].description}
+              </ThemedText>
+              
+              <View style={styles.questFooter}>
+                <ThemedText style={styles.questReward}>Reward: +{quests[0].xp_reward} EXP</ThemedText>
+                <Pressable onPress={() => handleStartQuiz(quests[0].target_category_id || 'mock')} style={styles.questButton}>
+                  <ThemedText style={styles.questButtonText}>ENTER ARENA</ThemedText>
+                </Pressable>
+              </View>
             </View>
-            <ThemedText style={styles.questDescription}>
-              Survive 5 Technical Interview Questions.
-            </ThemedText>
-            
-            <View style={styles.questFooter}>
-              <ThemedText style={styles.questReward}>Reward: +500 EXP</ThemedText>
-              <Pressable onPress={handleStartMock} style={styles.questButton}>
-                <ThemedText style={styles.questButtonText}>ENTER ARENA</ThemedText>
-              </Pressable>
-            </View>
-          </View>
+          )}
 
           {/* Skill Trees Section */}
           <View style={styles.section}>
@@ -102,59 +119,65 @@ export default function HomeScreen() {
                 </ThemedText>
               </View>
             ) : (
-              categories.map((category, index) => {
-                // Fake levels for UI mockup
-                const levels = [4, 7, 2, 9, 1];
-                const progress = [0.4, 0.7, 0.2, 0.9, 0.1];
-                const displayIndex = index % levels.length;
-                
-                return (
-                  <Pressable key={category.id} onPress={() => handleStartQuiz(category.id)}>
-                    {({ pressed }) => (
-                      <View style={[styles.skillCard, pressed && styles.pressed]}>
-                        <View style={styles.skillIconBox}>
-                          <FontAwesome5 name={category.icon as any} size={20} color={category.color} />
-                        </View>
-                        <View style={styles.skillContent}>
-                          <View style={styles.skillHeaderRow}>
-                            <ThemedText style={styles.skillTitle}>{category.title}</ThemedText>
-                            <ThemedText style={styles.skillLevel}>Lvl {levels[displayIndex]}</ThemedText>
+              Object.entries(groupedCategories).map(([groupName, groupCats]) => (
+                <View key={groupName} style={{ marginBottom: Spacing.four, gap: Spacing.three }}>
+                  <ThemedText style={styles.sectionSubtitle}>{groupName.toUpperCase()}</ThemedText>
+                  {groupCats.map(category => {
+                    const catProgress = progress[category.id]?.progress_percent || 0;
+                    const catLevel = Math.floor(catProgress / 20) + 1; // 1 level per 20% progress
+                    
+                    return (
+                      <Pressable key={category.id} onPress={() => handleStartQuiz(category.id)}>
+                        {({ pressed }) => (
+                          <View style={[styles.skillCard, pressed && styles.pressed]}>
+                            <View style={styles.skillIconBox}>
+                              <FontAwesome5 name={category.icon as any} size={20} color={category.color} />
+                            </View>
+                            <View style={styles.skillContent}>
+                              <View style={styles.skillHeaderRow}>
+                                <ThemedText style={styles.skillTitle}>{category.title}</ThemedText>
+                                <ThemedText style={styles.skillLevel}>Lvl {catLevel}</ThemedText>
+                              </View>
+                              <View style={styles.progressTrack}>
+                                <View style={[styles.progressFill, { width: `${catProgress}%` }]} />
+                              </View>
+                            </View>
+                            <FontAwesome name="chevron-right" size={12} color={Colors.dark.textSecondary} />
                           </View>
-                          {/* Fake striped progress bar */}
-                          <View style={styles.progressTrack}>
-                            <View style={[styles.progressFill, { width: `${progress[displayIndex] * 100}%` }]} />
-                          </View>
-                        </View>
-                        <FontAwesome name="chevron-right" size={12} color={Colors.dark.textSecondary} />
-                      </View>
-                    )}
-                  </Pressable>
-                );
-              })
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))
             )}
           </View>
 
           {/* Upcoming Boss Fights */}
-          <View style={styles.section}>
-            <ThemedText style={[styles.sectionTitle, { color: Colors.dark.danger }]}>
-              UPCOMING BOSS FIGHTS
-            </ThemedText>
-            
-            <Pressable onPress={() => handleStartQuiz('algorithms')}>
-              {({ pressed }) => (
-                <View style={[styles.bossCard, pressed && styles.pressed]}>
-                  <View style={styles.bossIconBox}>
-                    <ThemedText style={styles.bossIconText}>A</ThemedText>
-                  </View>
-                  <View style={styles.bossContent}>
-                    <ThemedText style={styles.bossTitle}>Algorithms & Data Structs</ThemedText>
-                    <ThemedText style={styles.bossSubtitle}>Tech Corp Inc. • In 2 Days</ThemedText>
-                  </View>
-                  <ThemedText style={styles.bossDangerText}>DANGER</ThemedText>
-                </View>
-              )}
-            </Pressable>
-          </View>
+          {bosses.length > 0 && (
+            <View style={styles.section}>
+              <ThemedText style={[styles.sectionTitle, { color: Colors.dark.danger }]}>
+                UPCOMING BOSS FIGHTS
+              </ThemedText>
+              
+              {bosses.map((boss) => (
+                <Pressable key={boss.id} onPress={() => handleStartQuiz(boss.category_id)}>
+                  {({ pressed }) => (
+                    <View style={[styles.bossCard, pressed && styles.pressed]}>
+                      <View style={styles.bossIconBox}>
+                        <ThemedText style={styles.bossIconText}>{boss.title.charAt(0)}</ThemedText>
+                      </View>
+                      <View style={styles.bossContent}>
+                        <ThemedText style={styles.bossTitle}>{boss.title}</ThemedText>
+                        <ThemedText style={styles.bossSubtitle}>{boss.company_name}</ThemedText>
+                      </View>
+                      <ThemedText style={styles.bossDangerText}>DANGER</ThemedText>
+                    </View>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          )}
 
         </ScrollView>
       </SafeAreaView>
@@ -294,6 +317,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#333333',
     paddingBottom: Spacing.two,
+  },
+  sectionSubtitle: {
+    fontFamily: 'VT323_400Regular',
+    color: Colors.dark.textSecondary,
+    fontSize: 18,
+    letterSpacing: 1,
   },
 
   // Skill Trees

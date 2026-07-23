@@ -52,7 +52,10 @@ export default function TabLayout() {
                 tabBar={(props) => <AppTabs {...props} />}
               >
                 <Tabs.Screen name="index" />
+                <Tabs.Screen name="learn" />
+                <Tabs.Screen name="leaderboard" />
                 <Tabs.Screen name="explore" />
+                <Tabs.Screen name="arena" />
               </Tabs>
             </>
           )}

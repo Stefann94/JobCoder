@@ -18,6 +18,7 @@ CREATE TABLE profiles (
 CREATE TABLE categories (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
+  group_name TEXT DEFAULT 'General',
   icon TEXT NOT NULL,
   color TEXT NOT NULL,
   description TEXT NOT NULL,
@@ -47,16 +48,43 @@ CREATE TABLE user_progress (
   UNIQUE(user_id, category_id)
 );
 
+-- Creează tabela pentru Daily Quests
+CREATE TABLE daily_quests (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  xp_reward INTEGER NOT NULL DEFAULT 50,
+  target_category_id TEXT REFERENCES categories(id) ON DELETE CASCADE,
+  required_questions INTEGER NOT NULL DEFAULT 5,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Creează tabela pentru Boss Fights
+CREATE TABLE boss_fights (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  category_id TEXT REFERENCES categories(id) ON DELETE CASCADE NOT NULL,
+  company_name TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  xp_reward INTEGER NOT NULL DEFAULT 200,
+  unlock_threshold_percent INTEGER NOT NULL DEFAULT 80,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
 
 -- Activează securitatea RLS (Row Level Security) pentru tabele (ca să fie publice doar la citire)
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_quests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE boss_fights ENABLE ROW LEVEL SECURITY;
 
--- Permite oricui să citească categoriile și întrebările (fără login obligatoriu pentru vizualizare)
+-- Permite oricui să citească categoriile, întrebările, quest-urile și boșii (fără login obligatoriu pentru vizualizare)
 CREATE POLICY "Categories are public" ON categories FOR SELECT USING (true);
 CREATE POLICY "Questions are public" ON questions FOR SELECT USING (true);
+CREATE POLICY "Daily Quests are public" ON daily_quests FOR SELECT USING (true);
+CREATE POLICY "Boss Fights are public" ON boss_fights FOR SELECT USING (true);
 
 -- Permite utilizatorilor autentificați să-și citească și să-și modifice propriul profil
 CREATE POLICY "Users can read own profile" ON profiles FOR SELECT USING (auth.uid() = id);
@@ -68,11 +96,15 @@ CREATE POLICY "Users can insert own progress" ON user_progress FOR INSERT WITH C
 CREATE POLICY "Users can update own progress" ON user_progress FOR UPDATE USING (auth.uid() = user_id);
 
 -- Populează categoriile noastre de bază ca să nu le mai scrii tu de mână!
-INSERT INTO categories (id, title, icon, color, description) VALUES
-('frontend', 'Frontend Logic', 'desktop', '#39FF14', 'React, State Management, UI/UX, Performance'),
-('backend', 'Backend Architecture', 'server', '#8B5CF6', 'APIs, Databases, Caching, Node.js'),
-('database', 'Data Manipulation', 'database', '#F59E0B', 'SQL, NoSQL, Indexing, Queries'),
-('behavioral', 'Behavioral & HR', 'users', '#EF4444', 'Teamwork, Conflict Resolution, Leadership');
+INSERT INTO categories (id, title, group_name, icon, color, description) VALUES
+('frontend', 'Frontend Logic', 'Web Development', 'desktop', '#39FF14', 'React, State Management, UI/UX, Performance'),
+('backend', 'Backend Architecture', 'Web Development', 'server', '#8B5CF6', 'APIs, Databases, Caching, Node.js'),
+('database', 'Data Manipulation', 'Web Development', 'database', '#F59E0B', 'SQL, NoSQL, Indexing, Queries'),
+('mobile', 'Mobile App Dev', 'Web Development', 'mobile', '#06B6D4', 'React Native, iOS, Android, Expo'),
+('algorithms', 'Algorithms & Data Structs', 'Computer Science', 'code-braces', '#EF4444', 'Arrays, Lists, Trees, Big O notation'),
+('networking', 'Networking & Security', 'Infrastructure', 'network-wired', '#10B981', 'TCP/IP, DNS, Cryptography, Firewalls'),
+('devops', 'DevOps & Cloud', 'Infrastructure', 'cloud', '#3B82F6', 'Docker, Kubernetes, AWS, CI/CD'),
+('behavioral', 'Behavioral & HR', 'Soft Skills', 'users', '#EC4899', 'Teamwork, Conflict Resolution, Leadership');
 
 -- =========================================================================
 -- TRIGGERS: Auto-Creare Profil la Înregistrare

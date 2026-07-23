@@ -4,8 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { CATEGORIES } from '@/constants/questions';
+import { BottomTabInset, MaxContentWidth, Spacing, Colors } from '@/constants/theme';
+import { fetchCategories, Category } from '@/lib/api';
+import { useProgress } from '@/providers/ProgressProvider';
+import { useAuth } from '@/providers/AuthProvider';
 
 interface Achievement {
   id: string;
@@ -22,9 +24,21 @@ export default function StatsScreen() {
     bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
   };
 
-  const [totalXp] = useState(450);
-  const [streak] = useState(5);
-  const [completedQuizzes] = useState(8);
+  const { progress } = useProgress();
+  const { profile } = useAuth();
+  const [categories, setCategories] = useState<Category[]>([]);
+  
+  React.useEffect(() => {
+    async function loadData() {
+      const data = await fetchCategories();
+      setCategories(data);
+    }
+    loadData();
+  }, []);
+
+  const totalXp = profile?.xp || 0;
+  const streak = 1; // Fake streak for now until implemented
+  const completedQuizzes = Object.keys(progress).length;
 
   const achievements: Achievement[] = [
     { id: 'ach-1', title: 'First Steps', description: 'Complete your first practice quiz', emoji: '🌱', unlocked: true },
@@ -49,16 +63,9 @@ export default function StatsScreen() {
     }
   };
 
-  // Mock progress numbers for different tracks
   const getCategoryProgress = (id: string) => {
-    switch (id) {
-      case 'algorithms': return 0.66; // 2/3 questions
-      case 'frontend': return 0.33;  // 1/3 questions
-      case 'backend': return 1.0;    // 3/3 questions
-      case 'system-design': return 0.0;
-      case 'hr-behavioral': return 0.66;
-      default: return 0.5;
-    }
+    const p = progress[id]?.progress_percent || 0;
+    return p / 100;
   };
 
   const contentPlatformStyle = Platform.select({
@@ -85,8 +92,8 @@ export default function StatsScreen() {
         
         {/* Title */}
         <View style={styles.header}>
-          <ThemedText type="subtitle" style={styles.title}>Your Career Progress</ThemedText>
-          <ThemedText type="small" style={styles.subtitle}>Track your path to getting hired</ThemedText>
+          <ThemedText type="subtitle" style={styles.title}>> USER_STATS_LOG</ThemedText>
+          <ThemedText type="small" style={styles.subtitle}>Tracking career progression vectors...</ThemedText>
         </View>
 
         {/* Stats Grid Widget */}
@@ -94,7 +101,7 @@ export default function StatsScreen() {
           <ThemedView type="backgroundElement" style={styles.statBox}>
             <ThemedText style={styles.statEmoji}>✨</ThemedText>
             <ThemedText type="subtitle" style={styles.statNum}>{totalXp}</ThemedText>
-            <ThemedText type="small" style={styles.statLabel}>Total XP</ThemedText>
+            <ThemedText type="small" style={styles.statLabel}>TOTAL XP</ThemedText>
           </ThemedView>
 
           <ThemedView type="backgroundElement" style={styles.statBox}>
@@ -112,23 +119,23 @@ export default function StatsScreen() {
 
         {/* Category Performance Bars */}
         <View style={styles.section}>
-          <ThemedText type="smallBold" style={styles.sectionTitle}>Category Mastery</ThemedText>
+          <ThemedText type="smallBold" style={styles.sectionTitle}>> CATEGORY_MASTERY</ThemedText>
           <ThemedView type="backgroundElement" style={styles.cardBlock}>
-            {CATEGORIES.map((category) => {
+            {categories.map((category) => {
               const progress = getCategoryProgress(category.id);
               const percentage = Math.round(progress * 100);
 
               return (
                 <View key={category.id} style={styles.progressRow}>
                   <View style={styles.progressLabelRow}>
-                    <ThemedText type="smallBold">{category.title}</ThemedText>
-                    <ThemedText type="small" style={{ color: category.color }}>{percentage}%</ThemedText>
+                    <ThemedText type="smallBold" style={styles.catTitle}>{category.title.toUpperCase()}</ThemedText>
+                    <ThemedText type="small" style={{ color: Colors.dark.primary, fontFamily: 'VT323_400Regular', fontSize: 16 }}>{percentage}%</ThemedText>
                   </View>
                   <View style={styles.barBackground}>
                     <View 
                       style={[
                         styles.barFill, 
-                        { width: `${percentage}%`, backgroundColor: category.color }
+                        { width: `${percentage}%` }
                       ]} 
                     />
                   </View>
@@ -140,7 +147,7 @@ export default function StatsScreen() {
 
         {/* Unlocked Achievements list */}
         <View style={styles.section}>
-          <ThemedText type="smallBold" style={styles.sectionTitle}>Unlocked Achievements</ThemedText>
+          <ThemedText type="smallBold" style={styles.sectionTitle}>> ACHIEVEMENTS_UNLOCKED</ThemedText>
           <View style={styles.achievementsGrid}>
             {achievements.map((ach) => (
               <ThemedView 
@@ -167,7 +174,7 @@ export default function StatsScreen() {
         {/* LinkedIn Share Button */}
         <Pressable onPress={handleShare} style={styles.shareBtn}>
           <ThemedText type="smallBold" style={styles.shareBtnText}>
-            Share achievements on LinkedIn 🚀
+            [ EXECUTE SHARE_LINKEDIN ]
           </ThemedText>
         </Pressable>
 
@@ -194,12 +201,21 @@ const styles = StyleSheet.create({
   header: {
     gap: Spacing.half,
     marginTop: Spacing.two,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
+    paddingBottom: Spacing.two,
   },
   title: {
-    fontWeight: '800',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 24,
+    letterSpacing: 2,
+    color: Colors.dark.primary,
   },
   subtitle: {
-    opacity: 0.5,
+    fontFamily: 'VT323_400Regular',
+    opacity: 0.7,
+    fontSize: 16,
+    color: Colors.dark.textSecondary,
   },
   statsRow: {
     flexDirection: 'row',
@@ -210,33 +226,42 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: Spacing.three,
     alignItems: 'center',
-    borderRadius: Spacing.three,
+    borderRadius: 0,
     borderWidth: 1,
-    borderColor: '#2E3135',
+    borderColor: '#333333',
+    backgroundColor: '#151515',
   },
   statEmoji: {
     fontSize: 22,
     marginBottom: Spacing.one,
   },
   statNum: {
-    fontWeight: '800',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 28,
+    color: Colors.dark.primary,
   },
   statLabel: {
-    opacity: 0.5,
-    fontSize: 11,
+    fontFamily: 'VT323_400Regular',
+    color: Colors.dark.textSecondary,
+    fontSize: 14,
+    letterSpacing: 1,
   },
   section: {
-    gap: Spacing.two,
+    gap: Spacing.three,
   },
   sectionTitle: {
-    fontWeight: '700',
+    fontFamily: 'VT323_400Regular',
+    color: '#FFFFFF',
+    fontSize: 20,
+    letterSpacing: 2,
   },
   cardBlock: {
     padding: Spacing.four,
-    borderRadius: Spacing.four,
+    borderRadius: 0,
     gap: Spacing.three,
     borderWidth: 1,
-    borderColor: '#2E3135',
+    borderColor: '#333333',
+    backgroundColor: '#111111',
   },
   progressRow: {
     gap: Spacing.one,
@@ -245,15 +270,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  catTitle: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 16,
+    color: '#DDDDDD',
+    letterSpacing: 1,
+  },
   barBackground: {
     height: 8,
-    backgroundColor: '#2E3135',
-    borderRadius: 4,
-    overflow: 'hidden',
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#333',
+    width: '100%',
   },
   barFill: {
     height: '100%',
-    borderRadius: 4,
+    backgroundColor: Colors.dark.primary,
   },
   achievementsGrid: {
     gap: Spacing.two,
@@ -261,52 +293,67 @@ const styles = StyleSheet.create({
   achievementCard: {
     flexDirection: 'row',
     padding: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: 0,
     borderWidth: 1,
-    borderColor: '#2E3135',
+    borderColor: '#2A4A33',
+    backgroundColor: '#1C1C1C',
     alignItems: 'center',
     gap: Spacing.three,
   },
   lockedAchievement: {
-    borderColor: '#212225',
-    opacity: 0.4,
+    borderColor: '#333333',
+    backgroundColor: '#151515',
+    opacity: 0.6,
   },
   badgeIconBg: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: '#3B82F620',
+    borderRadius: 0,
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+    backgroundColor: '#151515',
     justifyContent: 'center',
     alignItems: 'center',
   },
   lockedIconBg: {
-    backgroundColor: '#212225',
+    borderColor: '#333333',
+    backgroundColor: '#111111',
   },
   badgeEmoji: {
     fontSize: 20,
   },
   achievementText: {
     flex: 1,
-    gap: Spacing.half,
+    gap: 2,
   },
   achTitle: {
-    fontWeight: '600',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    color: Colors.dark.primary,
+    letterSpacing: 1,
   },
   achDesc: {
-    opacity: 0.6,
+    fontFamily: 'VT323_400Regular',
+    color: Colors.dark.textSecondary,
+    fontSize: 14,
   },
   lockedText: {
-    opacity: 0.8,
+    color: '#888888',
   },
   shareBtn: {
-    backgroundColor: '#0077B5', // LinkedIn Blue color
+    backgroundColor: 'transparent',
     paddingVertical: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: 0,
+    borderWidth: 2,
+    borderColor: Colors.dark.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.six,
   },
   shareBtnText: {
-    color: '#ffffff',
+    fontFamily: 'VT323_400Regular',
+    color: Colors.dark.primary,
+    fontSize: 18,
+    letterSpacing: 2,
   },
 });

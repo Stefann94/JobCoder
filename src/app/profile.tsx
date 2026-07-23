@@ -580,7 +580,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     gap: 10,
     justifyContent: 'center',
-    justifyContent: 'center',
   },
   tag: {
     flexDirection: 'row',

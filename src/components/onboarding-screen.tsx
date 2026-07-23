@@ -67,7 +67,7 @@ function TypewriterSubtitle() {
 
   useEffect(() => {
     const currentPhrase = TYPEWRITER_PHRASES[phraseIndex];
-    let timeout: NodeJS.Timeout;
+    let timeout: ReturnType<typeof setTimeout>;
 
     if (!isDeleting && text === currentPhrase) {
       // Pause at the end of typing
