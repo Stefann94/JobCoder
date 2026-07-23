@@ -297,7 +297,10 @@ export default function ProfileScreen() {
                     </View>
                   </View>
 
-                  <TouchableOpacity style={styles.btnSecondaryBtn} onPress={() => setIsEditing(true)}>
+                  <TouchableOpacity style={styles.btnSecondaryBtn} onPress={() => {
+                    setIsEditing(true);
+                    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
+                  }}>
                     <Text style={styles.btnSecondaryText}>[ EDIT_PROFILE ]</Text>
                   </TouchableOpacity>
                 </>
@@ -362,7 +365,10 @@ export default function ProfileScreen() {
                   />
 
                   <View style={styles.actionRow}>
-                    <TouchableOpacity style={[styles.btnSecondaryBtn, { flex: 1, borderColor: '#555', marginTop: 0 }]} onPress={() => setIsEditing(false)}>
+                    <TouchableOpacity style={[styles.btnSecondaryBtn, { flex: 1, borderColor: '#555', marginTop: 0 }]} onPress={() => {
+                      setIsEditing(false);
+                      setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
+                    }}>
                       <Text style={[styles.btnSecondaryText, { color: '#888' }]}>[ CANCEL ]</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.btnPrimary, { flex: 1, marginTop: 0 }]} onPress={handleSaveProfile} disabled={isSaving}>
@@ -569,8 +575,8 @@ const styles = StyleSheet.create({
   tagsRow: {
     flexDirection: 'row',
     marginBottom: 20,
-    flexWrap: 'wrap',
     gap: 10,
+    justifyContent: 'center',
     justifyContent: 'center',
   },
   tag: {
@@ -639,7 +645,13 @@ const styles = StyleSheet.create({
   logoutBtn: {
     marginTop: 30,
     alignSelf: 'center',
-    padding: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ff4444',
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 68, 68, 0.1)',
   },
   logoutBtnText: {
     color: '#ff4444',
