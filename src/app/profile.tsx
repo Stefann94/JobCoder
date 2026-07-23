@@ -190,7 +190,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: isEditing ? 120 : Math.max(insets.bottom, 10), flexGrow: 1 }} showsVerticalScrollIndicator={false}>
         {!isAuthenticated ? (
           // === INTERFAȚA DE LOGIN (GUEST) ===
           <View style={styles.content}>
@@ -233,21 +233,21 @@ export default function ProfileScreen() {
           </View>
         ) : (
           // === INTERFAȚA DE PROFIL (LOGAT) ===
-          <View style={styles.content}>
-            <Text style={styles.title}>HACKER_PROFILE</Text>
-            <Text style={styles.subtitle}>// {user?.email}</Text>
+          <View style={[styles.content, !isEditing && { justifyContent: 'center', paddingBottom: 10 }]}>
+            <Text style={[styles.title, !isEditing && { fontSize: 28, marginBottom: 2 }]}>HACKER_PROFILE</Text>
+            <Text style={[styles.subtitle, !isEditing && { fontSize: 16, marginBottom: 10 }]}>// {user?.email}</Text>
             
-            <View style={styles.profileCard}>
+            <View style={[styles.profileCard, !isEditing && { padding: 16, marginTop: 0 }]}>
               <TouchableOpacity 
-                style={styles.avatarWrapper} 
+                style={[styles.avatarWrapper, !isEditing && { marginBottom: 10 }]} 
                 onPress={() => isEditing ? setShowAvatarModal(true) : undefined}
                 disabled={!isEditing || isUploadingImage}
               >
-                <View style={[styles.avatarContainer, isEditing && styles.avatarEditing]}>
+                <View style={[styles.avatarContainer, isEditing && styles.avatarEditing, !isEditing && { width: 90, height: 90, borderRadius: 45 }]}>
                   {isUploadingImage ? (
                     <ActivityIndicator color={Colors.dark.primary} />
                   ) : (
-                    <AvatarRenderer avatarUrl={editForm.avatar_url || profile?.avatar_url} size={110} />
+                    <AvatarRenderer avatarUrl={editForm.avatar_url || profile?.avatar_url} size={isEditing ? 110 : 90} />
                   )}
                   {isEditing && !isUploadingImage && (
                     <View style={styles.editIconBadge}>
@@ -260,48 +260,48 @@ export default function ProfileScreen() {
               {!isEditing ? (
                 // --- MOD VIZUALIZARE ---
                 <>
-                  <Text style={styles.usernameText}>
+                  <Text style={[styles.usernameText, { fontSize: 26, letterSpacing: 1 }]}>
                     {profile?.username || user?.email?.split('@')[0].toUpperCase()}
                   </Text>
-                  <Text style={styles.titleText}>{profile?.title || 'Unknown Role'}</Text>
+                  <Text style={[styles.titleText, { fontSize: 16, marginBottom: 10 }]}>{profile?.title || 'Unknown Role'}</Text>
                   
-                  <View style={styles.tagsRow}>
-                    <View style={styles.tag}>
-                      <FontAwesome5 name="code" size={12} color={Colors.dark.background} />
-                      <Text style={styles.tagText}>{profile?.main_language || 'Binary'}</Text>
+                  <View style={[styles.tagsRow, { marginBottom: 10, gap: 8 }]}>
+                    <View style={[styles.tag, { paddingHorizontal: 10, paddingVertical: 4 }]}>
+                      <FontAwesome5 name="code" size={10} color={Colors.dark.background} />
+                      <Text style={[styles.tagText, { fontSize: 12 }]}>{profile?.main_language || 'Binary'}</Text>
                     </View>
                     {profile?.work_style && (
-                      <View style={[styles.tag, { backgroundColor: '#333' }]}>
-                        <Ionicons name="globe-outline" size={14} color={Colors.dark.text} />
-                        <Text style={[styles.tagText, { color: Colors.dark.text }]}>{profile.work_style}</Text>
+                      <View style={[styles.tag, { backgroundColor: '#333', paddingHorizontal: 10, paddingVertical: 4 }]}>
+                        <Ionicons name="globe-outline" size={12} color={Colors.dark.text} />
+                        <Text style={[styles.tagText, { color: Colors.dark.text, fontSize: 12 }]}>{profile.work_style}</Text>
                       </View>
                     )}
                   </View>
 
                   {profile?.goal && (
-                    <View style={styles.infoBox}>
-                      <Text style={styles.infoBoxLabel}>MISSION_OBJECTIVE:</Text>
-                      <Text style={styles.infoBoxText}>{profile.goal}</Text>
+                    <View style={[styles.infoBox, { padding: 10, marginBottom: 15 }]}>
+                      <Text style={[styles.infoBoxLabel, { fontSize: 12, marginBottom: 2 }]}>MISSION_OBJECTIVE:</Text>
+                      <Text style={[styles.infoBoxText, { fontSize: 14 }]}>{profile.goal}</Text>
                     </View>
                   )}
 
-                  <View style={styles.statsRow}>
+                  <View style={[styles.statsRow, { paddingTop: 10 }]}>
                     <View style={styles.statBox}>
-                      <Text style={styles.statValue}>1</Text>
-                      <Text style={styles.statLabel}>LEVEL</Text>
+                      <Text style={[styles.statValue, { fontSize: 28 }]}>1</Text>
+                      <Text style={[styles.statLabel, { fontSize: 12 }]}>LEVEL</Text>
                     </View>
-                    <View style={styles.statDivider} />
+                    <View style={[styles.statDivider, { height: 30 }]} />
                     <View style={styles.statBox}>
-                      <Text style={styles.statValue}>0</Text>
-                      <Text style={styles.statLabel}>XP</Text>
+                      <Text style={[styles.statValue, { fontSize: 28 }]}>0</Text>
+                      <Text style={[styles.statLabel, { fontSize: 12 }]}>XP</Text>
                     </View>
                   </View>
 
-                  <TouchableOpacity style={styles.btnSecondaryBtn} onPress={() => {
+                  <TouchableOpacity style={[styles.btnSecondaryBtn, { padding: 10, marginTop: 15 }]} onPress={() => {
                     setIsEditing(true);
                     setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
                   }}>
-                    <Text style={styles.btnSecondaryText}>[ EDIT_PROFILE ]</Text>
+                    <Text style={[styles.btnSecondaryText, { fontSize: 18 }]}>[ EDIT_PROFILE ]</Text>
                   </TouchableOpacity>
                 </>
               ) : (
@@ -380,8 +380,8 @@ export default function ProfileScreen() {
             </View>
 
             {!isEditing && (
-              <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-                <Text style={styles.logoutBtnText}>[ DISCONNECT ]</Text>
+              <TouchableOpacity style={[styles.logoutBtn, { marginTop: 20, padding: 10 }]} onPress={handleLogout}>
+                <Text style={[styles.logoutBtnText, { fontSize: 18 }]}>[ DISCONNECT ]</Text>
               </TouchableOpacity>
             )}
           </View>
