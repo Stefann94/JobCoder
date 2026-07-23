@@ -184,7 +184,13 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <View style={styles.header}>
+      <View style={[styles.header, isAuthenticated ? { justifyContent: 'space-between', alignItems: 'flex-start' } : { justifyContent: 'flex-end' }]}>
+        {isAuthenticated && (
+          <View style={{ flex: 1, paddingRight: 10 }}>
+            <Text style={[styles.title, !isEditing && { fontSize: 28, marginBottom: 2 }]} numberOfLines={1}>HACKER_PROFILE</Text>
+            <Text style={[styles.subtitle, !isEditing && { fontSize: 16, marginBottom: 0 }]} numberOfLines={1}>// {user?.email}</Text>
+          </View>
+        )}
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
           <Ionicons name="close" size={28} color={Colors.dark.text} />
         </TouchableOpacity>
@@ -233,11 +239,8 @@ export default function ProfileScreen() {
           </View>
         ) : (
           // === INTERFAȚA DE PROFIL (LOGAT) ===
-          <View style={[styles.content, !isEditing && { justifyContent: 'center' }]}>
-            <Text style={[styles.title, !isEditing && { fontSize: 28, marginBottom: 2 }]}>HACKER_PROFILE</Text>
-            <Text style={[styles.subtitle, !isEditing && { fontSize: 16, marginBottom: 10 }]}>// {user?.email}</Text>
-            
-            <View style={[styles.profileCard, !isEditing && { padding: 16, marginTop: 0 }]}>
+          <View style={[styles.content, !isEditing && { paddingBottom: 10 }]}>
+            <View style={[styles.profileCard, !isEditing && { padding: 16, marginTop: 10 }]}>
               <TouchableOpacity 
                 style={[styles.avatarWrapper, !isEditing && { marginBottom: 10 }]} 
                 onPress={() => isEditing ? setShowAvatarModal(true) : undefined}
@@ -380,7 +383,7 @@ export default function ProfileScreen() {
             </View>
 
             {!isEditing && (
-              <TouchableOpacity style={[styles.logoutBtn, { marginTop: 20, padding: 10 }]} onPress={handleLogout}>
+              <TouchableOpacity style={[styles.logoutBtn, { marginTop: 'auto', marginBottom: 20, padding: 10 }]} onPress={handleLogout}>
                 <Text style={[styles.logoutBtnText, { fontSize: 18 }]}>[ DISCONNECT ]</Text>
               </TouchableOpacity>
             )}
