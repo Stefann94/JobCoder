@@ -144,6 +144,7 @@ export default function ProfileScreen() {
     try {
       setIsLoggingIn(true);
       await GoogleSignin.hasPlayServices();
+      
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
 
