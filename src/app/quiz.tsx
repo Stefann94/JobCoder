@@ -118,6 +118,7 @@ export default function QuizScreen() {
 
       const loadData = async () => {
         // Reset quiz state in case of re-entry
+        setQuizQuestions([]);
         setCurrentIndex(0);
         setSelectedOptionId(null);
         setIsAnswered(false);
