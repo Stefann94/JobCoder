@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Modal, FlatList, Dimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView, Modal, FlatList, Dimensions, BackHandler } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
@@ -47,13 +47,29 @@ export default function ProfileScreen() {
 
   const scrollRef = useRef<ScrollView>(null);
 
-  // Reset scroll position and edit mode every time this screen is focused
+  // Reset scroll position and edit mode every time this screen is focused (initially)
   useFocusEffect(
     useCallback(() => {
       setIsEditing(false);
       setShowAvatarModal(false);
       scrollRef.current?.scrollTo({ y: 0, animated: false });
     }, [])
+  );
+
+  // Handle hardware back button
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (isEditing) {
+          setIsEditing(false);
+          return true;
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [isEditing])
   );
 
   useEffect(() => {

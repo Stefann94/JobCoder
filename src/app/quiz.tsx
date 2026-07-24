@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, Pressable, View, Animated, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { StyleSheet, ScrollView, Pressable, View, Animated, Platform, BackHandler, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect, useNavigation, Stack } from 'expo-router';
+import { FontAwesome5 } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -15,10 +16,11 @@ import {
   addXpToProfile,
   fetchDailyMixQuestions
 } from '@/lib/api';
-import { Spacing, MaxContentWidth } from '@/constants/theme';
+import { Spacing, MaxContentWidth, Colors } from '@/constants/theme';
 
 export default function QuizScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const params = useLocalSearchParams();
   const categoryId = params.category as string;
 
@@ -33,6 +35,81 @@ export default function QuizScreen() {
   const [score, setScore] = useState(0);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
+
+  // Exit Modal States
+  const [showExitWarning, setShowExitWarning] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [pendingAction, setPendingAction] = useState<any>(null);
+  const isExitingRef = useRef(false);
+
+  // Explanation Modal States
+  const [showExplanationModal, setShowExplanationModal] = useState(false);
+  const [explFadeAnim] = useState(new Animated.Value(0));
+  const [hasViewedQuestion, setHasViewedQuestion] = useState(false);
+
+  const triggerAbortModal = () => {
+    if (quizCompleted || quizQuestions.length === 0 || isExitingRef.current) return;
+    
+    setShowExitWarning(true);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (!quizCompleted && quizQuestions.length > 0 && !isExitingRef.current) {
+          triggerAbortModal();
+          return true; // Intercept hardware back
+        }
+        return false;
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [quizCompleted, quizQuestions.length, fadeAnim])
+  );
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (quizCompleted || quizQuestions.length === 0 || isExitingRef.current) {
+        return;
+      }
+
+      // Prevent default behavior of leaving the screen
+      e.preventDefault();
+      
+      // Store the action to dispatch it later
+      setPendingAction(e.data.action);
+      triggerAbortModal();
+    });
+
+    return unsubscribe;
+  }, [navigation, quizCompleted, quizQuestions.length, fadeAnim]);
+
+  const handleCancelExit = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowExitWarning(false);
+      setPendingAction(null);
+    });
+  };
+
+  const handleConfirmExit = () => {
+    setShowExitWarning(false);
+    isExitingRef.current = true;
+    if (pendingAction) {
+      navigation.dispatch(pendingAction);
+    } else {
+      router.replace('/');
+    }
+  };
 
   // Setup the questions based on navigation parameters
   useEffect(() => {
@@ -65,13 +142,47 @@ export default function QuizScreen() {
       setScore((prev) => prev + 1);
       setXpEarned((prev) => prev + 15); // 15 XP per correct answer
     }
+    
+    setShowExplanationModal(true);
+    Animated.timing(explFadeAnim, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleViewQuestion = () => {
+    Animated.timing(explFadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowExplanationModal(false);
+      setHasViewedQuestion(true);
+    });
   };
 
   const handleNext = async () => {
+    if (showExplanationModal) {
+      Animated.timing(explFadeAnim, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: true,
+      }).start(() => {
+        setShowExplanationModal(false);
+        proceedNext();
+      });
+    } else {
+      proceedNext();
+    }
+  };
+  
+  const proceedNext = async () => {
     if (currentIndex < quizQuestions.length - 1) {
       setCurrentIndex((prev) => prev + 1);
       setSelectedOptionId(null);
       setIsAnswered(false);
+      setHasViewedQuestion(false);
     } else {
       // Finish Quiz
       setQuizCompleted(true);
@@ -166,11 +277,72 @@ export default function QuizScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <Stack.Screen options={{ gestureEnabled: false, headerShown: false }} />
       <SafeAreaView style={[styles.safeArea, webPadding]} edges={['top', 'left', 'right']}>
         
+        {/* EXIT WARNING MODAL */}
+        <Modal
+          transparent={true}
+          visible={showExitWarning}
+          animationType="none"
+          onRequestClose={handleCancelExit}
+        >
+          <View style={styles.modalOverlay}>
+            <Animated.View style={[styles.modalContent, { opacity: fadeAnim }]}>
+              <View style={styles.modalHeader}>
+                <FontAwesome5 name="exclamation-triangle" size={24} color="#F59E0B" />
+                <ThemedText style={styles.modalTitle}>ABORT MISSION?</ThemedText>
+              </View>
+              <ThemedText style={styles.modalText}>
+                Are you sure you want to exit? All progress in this session will be lost permanently.
+              </ThemedText>
+              <View style={styles.modalActions}>
+                <Pressable style={[styles.modalBtn, styles.modalBtnCancel]} onPress={handleCancelExit}>
+                  <ThemedText style={styles.modalBtnText}>NO, RETURN</ThemedText>
+                </Pressable>
+                <Pressable style={[styles.modalBtn, styles.modalBtnConfirm]} onPress={handleConfirmExit}>
+                  <ThemedText style={[styles.modalBtnText, { color: '#EF4444' }]}>YES, ABORT</ThemedText>
+                </Pressable>
+              </View>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* EXPLANATION MODAL */}
+        <Modal
+          transparent={true}
+          visible={showExplanationModal}
+          animationType="none"
+          onRequestClose={handleViewQuestion}
+        >
+          <View style={styles.modalOverlay}>
+            <Animated.View style={[styles.modalContent, { opacity: explFadeAnim }]}>
+              <View style={styles.explanationHeader}>
+                <ThemedText style={styles.explanationEmoji}>
+                  {currentQuestion.options.find((o) => o.id === selectedOptionId)?.isCorrect ? '🎉' : '❌'}
+                </ThemedText>
+                <ThemedText type="smallBold" style={styles.explanationTitle}>
+                  {currentQuestion.options.find((o) => o.id === selectedOptionId)?.isCorrect ? 'Correct!' : 'Incorrect'}
+                </ThemedText>
+              </View>
+              <ThemedText style={styles.explanationBodyModal}>
+                {currentQuestion.explanation}
+              </ThemedText>
+              <View style={styles.modalActions}>
+                <Pressable style={[styles.modalBtn, styles.modalBtnCancel]} onPress={handleViewQuestion}>
+                  <ThemedText style={styles.modalBtnText}>VIEW QUESTION</ThemedText>
+                </Pressable>
+                <Pressable style={[styles.modalBtn, styles.modalBtnNext]} onPress={handleNext}>
+                  <ThemedText style={[styles.modalBtnText, { color: Colors.dark.primary }]}>NEXT QUESTION</ThemedText>
+                </Pressable>
+              </View>
+            </Animated.View>
+          </View>
+        </Modal>
+
         {/* Quiz Progress Header */}
         <View style={styles.quizHeader}>
-          <Pressable onPress={() => router.back()} style={styles.closeButton}>
+          <Pressable onPress={triggerAbortModal} style={styles.closeButton}>
             <ThemedText type="subtitle">✕</ThemedText>
           </Pressable>
           <View style={styles.progressBarWrapper}>
@@ -235,28 +407,14 @@ export default function QuizScreen() {
             })}
           </View>
 
-          {/* Correct/Incorrect Explanation Banner */}
-          {isAnswered && (
-            <ThemedView type="backgroundSelected" style={styles.explanationCard}>
-              <View style={styles.explanationHeader}>
-                <ThemedText style={styles.explanationEmoji}>
-                  {currentQuestion.options.find((o) => o.id === selectedOptionId)?.isCorrect ? '🎉' : '❌'}
-                </ThemedText>
-                <ThemedText type="smallBold" style={styles.explanationTitle}>
-                  {currentQuestion.options.find((o) => o.id === selectedOptionId)?.isCorrect ? 'Correct!' : 'Incorrect'}
-                </ThemedText>
-              </View>
-              <ThemedText type="small" style={styles.explanationBody}>
-                {currentQuestion.explanation}
+          {/* Correct/Incorrect Explanation Banner (Replaced with Next Button) */}
+          {isAnswered && hasViewedQuestion && (
+            <Pressable style={styles.inlineNextButton} onPress={handleNext}>
+              <ThemedText style={styles.inlineNextButtonText}>
+                {currentIndex === quizQuestions.length - 1 ? 'FINISH QUIZ' : 'NEXT QUESTION →'}
               </ThemedText>
-              <Pressable style={styles.nextButton} onPress={handleNext}>
-                <ThemedText type="smallBold" style={styles.nextButtonText}>
-                  {currentIndex === quizQuestions.length - 1 ? 'Finish Quiz' : 'Next Question →'}
-                </ThemedText>
-              </Pressable>
-            </ThemedView>
+            </Pressable>
           )}
-
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -273,6 +431,64 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#333',
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  modalTitle: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 28,
+    color: '#F59E0B',
+  },
+  modalText: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 20,
+    color: '#888',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  modalBtnCancel: {
+    backgroundColor: '#1a1a1a',
+    borderColor: '#333',
+  },
+  modalBtnConfirm: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderColor: '#EF4444',
+  },
+  modalBtnText: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 22,
+    color: '#DDD',
+    letterSpacing: 1,
+  },
   scrollContent: {
     padding: Spacing.three,
     justifyContent: 'center',
@@ -280,8 +496,8 @@ const styles = StyleSheet.create({
   },
   quizScrollContent: {
     padding: Spacing.three,
-    gap: Spacing.four,
-    paddingBottom: Spacing.six,
+    gap: Spacing.two,
+    paddingBottom: 100, // Extra padding so navbar doesn't obscure the content
   },
   quizHeader: {
     flexDirection: 'row',
@@ -289,26 +505,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     gap: Spacing.three,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    marginBottom: 10,
   },
   closeButton: {
     padding: Spacing.one,
   },
   progressBarWrapper: {
     flex: 1,
-    height: 10,
-    backgroundColor: '#2E3135',
-    borderRadius: 5,
-    overflow: 'hidden',
+    height: 12,
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#333',
   },
   progressBarFilled: {
     height: '100%',
-    backgroundColor: '#10B981', // green progress fill
+    backgroundColor: Colors.dark.primary, // terminal green
   },
   progressText: {
-    opacity: 0.7,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    color: '#888',
   },
   questionCardHeader: {
     gap: Spacing.two,
+    marginBottom: 10,
   },
   metaRow: {
     flexDirection: 'row',
@@ -316,22 +538,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   categoryTag: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 14,
+    color: '#888',
     letterSpacing: 1.2,
   },
   difficultyBadge: {
-    paddingVertical: Spacing.half,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.one,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#444',
+    backgroundColor: '#111',
   },
   difficultyText: {
-    fontSize: 10,
-    fontWeight: '700',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 12,
+    color: '#AAA',
+    textTransform: 'uppercase',
   },
   questionTitle: {
-    fontWeight: '700',
-    lineHeight: 28,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 22,
+    color: '#FFF',
+    lineHeight: 26,
+    marginTop: 5,
   },
   optionsList: {
     gap: Spacing.two,
@@ -339,67 +569,75 @@ const styles = StyleSheet.create({
   optionCard: {
     flexDirection: 'row',
     padding: Spacing.three,
-    borderRadius: Spacing.three,
     borderWidth: 1,
-    borderColor: '#2E3135',
+    borderColor: '#333',
+    backgroundColor: '#0a0a0a',
     alignItems: 'center',
     gap: Spacing.three,
   },
   optionLetter: {
-    fontSize: 14,
-    fontWeight: '700',
-    opacity: 0.5,
-    width: 20,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    color: '#666',
+    width: 24,
   },
   optionText: {
     flex: 1,
-    fontSize: 15,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    color: '#DDD',
   },
   selectedOption: {
-    borderColor: '#3B82F6',
+    borderColor: Colors.dark.primary,
+    backgroundColor: 'rgba(57, 255, 20, 0.05)',
   },
   correctOption: {
-    borderColor: '#10B981',
-    backgroundColor: '#10B98115',
+    borderColor: Colors.dark.primary,
+    backgroundColor: 'rgba(57, 255, 20, 0.1)',
   },
   incorrectOption: {
     borderColor: '#EF4444',
-    backgroundColor: '#EF444415',
-  },
-  explanationCard: {
-    padding: Spacing.four,
-    borderRadius: Spacing.three,
-    gap: Spacing.two,
-    marginTop: Spacing.two,
-    borderWidth: 1,
-    borderColor: '#2E3135',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
   },
   explanationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 10,
     gap: Spacing.two,
   },
   explanationEmoji: {
-    fontSize: 20,
+    fontSize: 24,
   },
   explanationTitle: {
-    fontWeight: '700',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 28,
+    color: '#FFF',
   },
-  explanationBody: {
-    opacity: 0.8,
-    lineHeight: 20,
-    marginBottom: Spacing.two,
+  explanationBodyModal: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    color: '#CCC',
+    lineHeight: 24,
+    marginBottom: 24,
   },
-  nextButton: {
-    backgroundColor: '#10B981',
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.two,
+  modalBtnNext: {
+    backgroundColor: 'rgba(57, 255, 20, 0.1)',
+    borderColor: Colors.dark.primary,
+  },
+  inlineNextButton: {
+    backgroundColor: '#1a1a1a',
+    paddingVertical: Spacing.three,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: Spacing.one,
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+    marginTop: Spacing.four,
   },
-  nextButtonText: {
-    color: '#ffffff',
+  inlineNextButtonText: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 22,
+    color: Colors.dark.primary,
+    letterSpacing: 1,
   },
   // Scoreboard styling
   scoreContainer: {
@@ -416,58 +654,68 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   bigScore: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: '#10B981',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 64,
+    color: Colors.dark.primary,
   },
   scoreSubtitle: {
-    opacity: 0.6,
-    letterSpacing: 1.5,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 16,
+    color: '#888',
+    letterSpacing: 2,
   },
   badgeCard: {
     alignSelf: 'stretch',
     padding: Spacing.four,
-    borderRadius: Spacing.four,
     alignItems: 'center',
     gap: Spacing.two,
     borderWidth: 1,
-    borderColor: '#2E3135',
+    borderColor: '#333',
+    backgroundColor: '#111',
   },
   badgeTag: {
-    fontSize: 10,
-    opacity: 0.5,
-    letterSpacing: 1,
+    fontFamily: 'VT323_400Regular',
+    fontSize: 14,
+    color: '#666',
+    letterSpacing: 2,
   },
   badgeTitle: {
-    fontWeight: '800',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 24,
   },
   badgeDesc: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 16,
     textAlign: 'center',
-    opacity: 0.7,
-    lineHeight: 18,
+    color: '#AAA',
+    lineHeight: 22,
   },
   xpCard: {
-    backgroundColor: '#F59E0B20',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.four,
-    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#F59E0B40',
+    borderColor: 'rgba(245, 158, 11, 0.4)',
   },
   xpText: {
+    fontFamily: 'VT323_400Regular',
     color: '#F59E0B',
-    fontWeight: '700',
-    fontSize: 15,
+    fontSize: 18,
   },
   actionButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#1a1a1a',
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.six,
-    borderRadius: Spacing.three,
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
     alignSelf: 'stretch',
     alignItems: 'center',
   },
   actionButtonText: {
-    color: '#ffffff',
+    fontFamily: 'VT323_400Regular',
+    fontSize: 20,
+    color: Colors.dark.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 });

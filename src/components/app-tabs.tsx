@@ -11,6 +11,12 @@ import { Colors, Spacing } from '@/constants/theme';
 export default function AppTabs({ state, descriptors, navigation }: BottomTabBarProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const currentRouteName = state.routes[state.index].name;
+
+  // Ascundem tab bar-ul pe anumite ecrane unde vrem un flow full-screen (ex: Quiz)
+  if (currentRouteName === 'quiz' || currentRouteName === 'profile') {
+    return null;
+  }
 
   return (
     <View style={[styles.tabBarContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>

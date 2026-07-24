@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager, ActivityIndicator, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Colors } from '@/constants/theme';
@@ -88,6 +88,24 @@ export default function LearnScreen() {
     // router.push(`/lesson/${file.id}`)
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (currentDirId) {
+          navigateToDir(null);
+          return true; // Intercept hardware back
+        }
+        return false; // Default behavior
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      return () => {
+        subscription.remove();
+      };
+    }, [currentDirId])
+  );
+
   const activeDir = currentDirId ? directories.find(d => d.id === currentDirId) : null;
 
   const coreIds = ['frontend', 'backend', 'database', 'algorithms'];
@@ -103,6 +121,16 @@ export default function LearnScreen() {
           {activeDir ? `// path: root/${activeDir.id}` : '// root/ - Select a directory to mount.'}
         </ThemedText>
       </View>
+
+      {/* FIXED CD .. BACK BUTTON */}
+      {activeDir && (
+        <View style={styles.fixedBackButtonContainer}>
+          <Pressable style={styles.backButton} onPress={() => navigateToDir(null)}>
+            <FontAwesome5 name="chevron-left" size={14} color={Colors.dark.primary} />
+            <ThemedText style={styles.backButtonText}>cd ..</ThemedText>
+          </Pressable>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -163,58 +191,72 @@ export default function LearnScreen() {
           ) : (
             // DIRECTORY LEVEL - SHOW FILES
             <View style={styles.fileSystem}>
-              
-              {/* CD .. BACK BUTTON */}
-              <Pressable style={styles.backButton} onPress={() => navigateToDir(null)}>
-                <FontAwesome5 name="chevron-left" size={14} color={Colors.dark.primary} />
-                <ThemedText style={styles.backButtonText}>cd ..</ThemedText>
-              </Pressable>
 
               <View style={styles.activeDirHeader}>
-                <ThemedText style={styles.activeDirTitle}>{activeDir.title}/</ThemedText>
-                <ThemedText style={styles.dirDesc}>// {activeDir.desc}</ThemedText>
+                <View style={styles.activeDirHeaderInner}>
+                  <View style={[styles.gridCardIconWrapper, { borderColor: activeDir.color }]}>
+                    <FontAwesome5 name={activeDir.icon as any} size={20} color={activeDir.color} />
+                  </View>
+                  <ThemedText style={styles.activeDirTitle}>{activeDir.title}</ThemedText>
+                </View>
+                <ThemedText style={styles.dirDesc}>{activeDir.desc}</ThemedText>
               </View>
               
-              <View style={styles.fileList}>
-                {activeDir.files.map(file => (
-                  <Pressable 
-                    key={file.id} 
-                    onPress={() => handleFilePress(file)}
-                    style={[styles.fileCard, file.isLocked && styles.fileCardLocked]}
-                  >
-                    <View style={styles.fileMain}>
-                      <View style={styles.fileHeader}>
-                        <View style={styles.fileLeft}>
-                          <FontAwesome5 
-                            name={file.type === 'doc' ? 'file-alt' : 'terminal'} 
-                            size={16} 
-                            color={file.isLocked ? '#555' : (file.progress === 100 ? Colors.dark.primary : '#AAA')} 
-                          />
-                          <ThemedText style={[styles.fileTitle, file.isLocked && styles.textLocked, file.progress === 100 && styles.textCompleted]}>
-                            {file.title}
-                          </ThemedText>
-                        </View>
-                        
-                        <View style={styles.fileRight}>
-                          {file.isLocked ? (
-                            <FontAwesome5 name="lock" size={14} color="#555" />
+              <View style={styles.timelineContainer}>
+                {activeDir.files.map((file, index) => {
+                  const isLast = index === activeDir.files.length - 1;
+                  const isCompleted = file.progress === 100;
+                  const isLocked = file.isLocked;
+                  const nodeColor = isCompleted ? Colors.dark.primary : (isLocked ? '#333' : '#F59E0B');
+
+                  return (
+                    <View key={file.id} style={styles.timelineItem}>
+                      
+                      {/* Timeline Line & Node */}
+                      <View style={styles.timelineVisual}>
+                        <View style={[styles.timelineNode, { borderColor: nodeColor, backgroundColor: isCompleted ? Colors.dark.primary : '#111' }]}>
+                          {isCompleted ? (
+                            <FontAwesome5 name="check" size={10} color="#000" />
+                          ) : isLocked ? (
+                            <FontAwesome5 name="lock" size={10} color="#555" />
                           ) : (
-                            <>
-                              <ThemedText style={styles.fileXp}>+{file.xp} XP</ThemedText>
-                              {file.progress > 0 && (
-                                <ThemedText style={[styles.fileProgress, file.progress === 100 && { color: Colors.dark.primary }]}>
-                                  [{file.progress}%]
-                                </ThemedText>
-                              )}
-                            </>
+                            <View style={styles.timelineNodeInner} />
                           )}
                         </View>
+                        {!isLast && <View style={[styles.timelineLine, { backgroundColor: isCompleted ? Colors.dark.primary : '#333' }]} />}
                       </View>
-                      {/* Warm description displayed here below the file title */}
-                      <ThemedText style={styles.fileDesc}>{file.desc}</ThemedText>
+                      
+                      {/* File Card */}
+                      <Pressable 
+                        onPress={() => handleFilePress(file)}
+                        style={[styles.timelineCard, isLocked && styles.timelineCardLocked, isCompleted && styles.timelineCardCompleted]}
+                      >
+                        <View style={styles.fileMain}>
+                          <View style={styles.fileHeader}>
+                            <ThemedText style={[styles.fileTitle, isLocked && styles.textLocked, isCompleted && styles.textCompleted]}>
+                              {file.title}
+                            </ThemedText>
+                            
+                            <View style={styles.fileRight}>
+                              {!isLocked && (
+                                <>
+                                  <ThemedText style={styles.fileXp}>+{file.xp} XP</ThemedText>
+                                  {file.progress > 0 && (
+                                    <ThemedText style={[styles.fileProgress, isCompleted && { color: Colors.dark.primary }]}>
+                                      [{file.progress}%]
+                                    </ThemedText>
+                                  )}
+                                </>
+                              )}
+                            </View>
+                          </View>
+                          <ThemedText style={[styles.fileDesc, isLocked && styles.textLocked]}>{file.desc}</ThemedText>
+                        </View>
+                      </Pressable>
+                      
                     </View>
-                  </Pressable>
-                ))}
+                  );
+                })}
               </View>
             </View>
           )}
@@ -360,65 +402,117 @@ const styles = StyleSheet.create({
   },
 
   activeDirHeader: {
-    marginBottom: 20,
+    marginBottom: 30,
+    backgroundColor: '#111',
+    padding: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  activeDirHeaderInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 10,
   },
   activeDirTitle: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 24,
+    fontSize: 26,
     color: '#DDD',
-    letterSpacing: 1,
-    marginBottom: 5,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   dirDesc: {
     fontSize: 14,
     color: '#888',
-    lineHeight: 20,
+    lineHeight: 22,
   },
   
-  fileList: {
-    gap: 10,
+  timelineContainer: {
+    paddingLeft: 10,
+    paddingRight: 10,
   },
-  fileCard: {
-    padding: 15,
+  timelineItem: {
+    flexDirection: 'row',
+    marginBottom: 0,
+  },
+  timelineVisual: {
+    width: 40,
+    alignItems: 'center',
+  },
+  timelineNode: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    backgroundColor: '#111',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  timelineNodeInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#F59E0B',
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: '#333',
+    marginVertical: -2,
+    zIndex: 1,
+  },
+  
+  timelineCard: {
+    flex: 1,
+    padding: 16,
     backgroundColor: '#0a0a0a',
     borderWidth: 1,
     borderColor: '#222',
-    borderRadius: 0,
+    borderRadius: 8,
+    marginBottom: 20,
+    marginLeft: 10,
   },
-  fileCardLocked: {
+  timelineCardLocked: {
     opacity: 0.6,
     borderColor: '#1a1a1a',
     backgroundColor: '#0f0f0f',
   },
+  timelineCardCompleted: {
+    borderColor: 'rgba(57, 255, 20, 0.3)',
+    backgroundColor: 'rgba(57, 255, 20, 0.02)',
+  },
+  
   fileMain: {
-    gap: 8,
+    gap: 10,
   },
   fileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  fileLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
   fileTitle: {
     fontFamily: 'VT323_400Regular',
     fontSize: 20,
-    color: '#CCC',
+    color: '#EEE',
+    flex: 1,
   },
   fileDesc: {
-    fontSize: 13,
-    color: '#777',
-    paddingLeft: 26, // Liniat cu textul, nu cu iconița
-    lineHeight: 18,
+    fontSize: 14,
+    color: '#888',
+    lineHeight: 20,
   },
   textLocked: {
     color: '#555',
   },
   textCompleted: {
     color: Colors.dark.primary,
+  },
+  
+  fixedBackButtonContainer: {
+    paddingHorizontal: 24,
+    marginBottom: 5,
   },
   
   fileRight: {
