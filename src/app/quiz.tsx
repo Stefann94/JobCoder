@@ -112,25 +112,48 @@ export default function QuizScreen() {
   };
 
   // Setup the questions based on navigation parameters
-  useEffect(() => {
-    const loadData = async () => {
-      const fetchedCats = await fetchCategories();
-      setCategories(fetchedCats);
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      const loadData = async () => {
+        // Reset quiz state in case of re-entry
+        setCurrentIndex(0);
+        setSelectedOptionId(null);
+        setIsAnswered(false);
+        setHasViewedQuestion(false);
+        setScore(0);
+        setQuizCompleted(false);
+        setXpEarned(0);
+        setShowExitWarning(false);
+        setPendingAction(null);
+        isExitingRef.current = false;
+
+        const fetchedCats = await fetchCategories();
+        if (!isActive) return;
+        setCategories(fetchedCats);
+        
+        let fetchedQs;
+        if (categoryId === 'daily_mix') {
+          const learnedCategoryIds = Object.entries(progress)
+            .filter(([key, val]) => val.progress_percent > 0)
+            .map(([key]) => key);
+          fetchedQs = await fetchDailyMixQuestions(learnedCategoryIds);
+        } else {
+          fetchedQs = await fetchQuestionsByCategory(categoryId);
+        }
+        
+        if (!isActive) return;
+        setQuizQuestions(fetchedQs);
+      };
       
-      let fetchedQs;
-      if (categoryId === 'daily_mix') {
-        const learnedCategoryIds = Object.entries(progress)
-          .filter(([key, val]) => val.progress_percent > 0)
-          .map(([key]) => key);
-        fetchedQs = await fetchDailyMixQuestions(learnedCategoryIds);
-      } else {
-        fetchedQs = await fetchQuestionsByCategory(categoryId);
-      }
-      
-      setQuizQuestions(fetchedQs);
-    };
-    loadData();
-  }, [categoryId]);
+      loadData();
+
+      return () => {
+        isActive = false;
+      };
+    }, [categoryId])
+  );
 
   const handleOptionSelect = (optionId: string, isCorrect: boolean) => {
     if (isAnswered) return; // Prevent clicking multiple times
