@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, ScrollView, Pressable, View, Dimensions, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
@@ -21,8 +21,18 @@ export default function HomeScreen() {
   const [quests, setQuests] = useState<DailyQuest[]>([]);
   const [bosses, setBosses] = useState<BossFight[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const scrollViewRef = useRef<any>(null);
+  const navigation = useNavigation();
 
   const webPadding = Platform.select({ web: { paddingTop: 80 }, default: {} });
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    });
+    return unsubscribe;
+  }, [navigation]);
   
   useEffect(() => {
     async function loadData() {
@@ -62,6 +72,7 @@ export default function HomeScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScrollView 
+          ref={scrollViewRef}
           contentContainerStyle={[styles.scrollContent, webPadding]}
           showsVerticalScrollIndicator={false}
           style={{ flex: 1 }}

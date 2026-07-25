@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, ScrollView, View, Pressable, Platform, Share } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter, useNavigation } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -27,6 +28,15 @@ export default function StatsScreen() {
   const { progress } = useProgress();
   const { profile } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    });
+    return unsubscribe;
+  }, [navigation]);
   
   React.useEffect(() => {
     async function loadData() {
@@ -83,6 +93,7 @@ export default function StatsScreen() {
 
   return (
     <ScrollView
+      ref={scrollViewRef}
       style={styles.scrollView}
       contentInset={insets}
       contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}

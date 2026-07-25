@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager, BackHandler } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager, BackHandler, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useRouter, useFocusEffect, useNavigation } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { GlobalLoading } from '@/components/global-loading';
@@ -11,23 +11,27 @@ import { supabase } from '@/lib/supabase';
 
 // LayoutAnimation is enabled by default in the New Architecture (Fabric)
 
-type FileItem = { id: string; title: string; desc: string; type: 'doc' | 'exec'; xp: number; progress: number; isLocked?: boolean; tier?: 'core' | 'advanced' };
+type FileItem = { id: string; title: string; desc: string; type: 'doc' | 'exec'; xp: number; progress: number; isLocked?: boolean; tier?: 'core' | 'advanced'; estimatedTime?: number };
 type DirectoryItem = { id: string; title: string; desc: string; icon: string; color: string; files: FileItem[] };
 
 export default function LearnScreen() {
   const router = useRouter();
   const [directories, setDirectories] = useState<DirectoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   
   const [currentDirId, setCurrentDirId] = useState<string | null>(null);
   
-  const { reset } = useLocalSearchParams<{ reset?: string }>();
+  const navigation = useNavigation();
 
   useEffect(() => {
-    if (reset) {
+    const unsubscribe = navigation.addListener('tabPress', (e) => {
+      // e.preventDefault(); // If we wanted to stop the default tab switch, but we just want to reset state
       setCurrentDirId(null);
-    }
-  }, [reset]);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   useEffect(() => {
     fetchLearningData();
@@ -70,6 +74,7 @@ export default function LearnScreen() {
             progress: 0,
             isLocked: false,
             tier: m.tier || 'core',
+            estimatedTime: m.estimated_time || 15,
           }))
         };
       });
@@ -82,8 +87,16 @@ export default function LearnScreen() {
       console.error('Error fetching learning data:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchLearningData();
+  }, []);
+
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const navigateToDir = (id: string | null) => {
     // Smooth fade & slide animation
@@ -91,6 +104,8 @@ export default function LearnScreen() {
       LayoutAnimation.create(300, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity)
     );
     setCurrentDirId(id);
+    // Reset scroll position to top when changing views
+    scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   };
 
   const handleFilePress = (file: FileItem) => {
@@ -128,17 +143,19 @@ export default function LearnScreen() {
       <View style={[styles.header, activeDir && { paddingBottom: 15 }]}>
         {!activeDir ? (
           <>
-            <ThemedText style={styles.title}>{'>'} KNOWLEDGE_BASE</ThemedText>
-            <ThemedText style={styles.subtitle}>
-              {'// root/ - Select a directory to mount.'}
-            </ThemedText>
+            <ThemedText style={styles.title}>TRAINING GROUNDS</ThemedText>
           </>
         ) : (
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Pressable onPress={() => navigateToDir(null)} style={{ paddingRight: 15, paddingVertical: 5 }}>
               <FontAwesome5 name="chevron-left" size={24} color={Colors.dark.primary} />
             </Pressable>
-            <ThemedText style={[styles.title, { marginBottom: 0, flex: 1 }]} numberOfLines={1}>
+            <ThemedText 
+              style={[styles.title, { marginBottom: 0, flex: 1, lineHeight: 32 }]} 
+              adjustsFontSizeToFit={true}
+              numberOfLines={2}
+              minimumFontScale={0.7}
+            >
               {activeDir.title.toUpperCase()}
             </ThemedText>
             <FontAwesome5 name={activeDir.icon as any} size={24} color={activeDir.color} style={{ marginLeft: 10 }} />
@@ -150,9 +167,19 @@ export default function LearnScreen() {
         <GlobalLoading message="FETCHING FILES" transparentBackground />
       ) : (
         <ScrollView
+          ref={scrollViewRef}
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh} 
+              tintColor={Colors.dark.primary} // iOS
+              colors={[Colors.dark.primary]} // Android arrow color
+              progressBackgroundColor="#111111" // Android background circle
+            />
+          }
         >
           {!activeDir ? (
             // ROOT LEVEL - SHOW DIRECTORIES
@@ -200,12 +227,8 @@ export default function LearnScreen() {
               )}
             </View>
           ) : (
-            // DIRECTORY LEVEL - SHOW FILES
+            // INSIDE DIRECTORY - SHOW TIMELINE
             <View style={styles.fileSystem}>
-
-              <View style={[styles.activeDirHeader, { marginTop: 0 }]}>
-                <ThemedText style={styles.dirDesc}>{activeDir.desc}</ThemedText>
-              </View>
               
               <View style={styles.timelineContainer}>
                 
@@ -246,9 +269,13 @@ export default function LearnScreen() {
                             </ThemedText>
                             <View style={styles.fileRight}>
                               {!isLocked && (
-                                <>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#333', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4 }}>
+                                    <FontAwesome5 name="clock" size={10} color="#F59E0B" />
+                                    <ThemedText style={{ fontSize: 11, color: '#F59E0B', marginLeft: 5, fontFamily: 'VT323_400Regular' }}>{file.estimatedTime}m</ThemedText>
+                                  </View>
                                   <ThemedText style={styles.fileXp}>+{file.xp} XP</ThemedText>
-                                </>
+                                </View>
                               )}
                             </View>
                           </View>
@@ -298,9 +325,13 @@ export default function LearnScreen() {
                                 </ThemedText>
                                 <View style={styles.fileRight}>
                                   {!isLocked && (
-                                    <>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#333', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4 }}>
+                                        <FontAwesome5 name="clock" size={10} color="#F59E0B" />
+                                        <ThemedText style={{ fontSize: 11, color: '#F59E0B', marginLeft: 5, fontFamily: 'VT323_400Regular' }}>{file.estimatedTime}m</ThemedText>
+                                      </View>
                                       <ThemedText style={[styles.fileXp, { color: '#EF4444' }]}>+{file.xp} XP</ThemedText>
-                                    </>
+                                    </View>
                                   )}
                                 </View>
                               </View>
@@ -336,11 +367,16 @@ const styles = StyleSheet.create({
     paddingTop: 30,
     paddingBottom: 20,
     borderBottomWidth: 1, 
-    borderBottomColor: '#222',
+    borderBottomColor: 'rgba(255,255,255,0.05)',
     marginBottom: 20
   },
-  title: { fontFamily: 'VT323_400Regular', fontSize: 32, letterSpacing: 2, color: Colors.dark.primary, marginBottom: 5 },
-  subtitle: { fontSize: 16, color: '#888', fontStyle: 'italic', fontFamily: 'VT323_400Regular' },
+  title: { 
+    fontFamily: 'VT323_400Regular', 
+    fontSize: 36, 
+    letterSpacing: 3, 
+    color: '#FFF', 
+    marginBottom: 6,
+  },
   
   loadingContainer: {
     flex: 1,
@@ -388,11 +424,11 @@ const styles = StyleSheet.create({
   },
   gridCard: {
     width: '48%',
-    backgroundColor: '#121212',
+    backgroundColor: 'rgba(18, 18, 18, 0.7)',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: 'rgba(255, 255, 255, 0.05)',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: 'flex-start',
     gap: 12,
     position: 'relative',
@@ -443,27 +479,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingVertical: 10,
-    paddingHorizontal: 15,
-    backgroundColor: '#1a1a1a',
+    paddingHorizontal: 5,
     alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: '#333',
-    marginBottom: 20,
+    marginBottom: 25,
   },
   backButtonText: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 18,
+    fontSize: 16,
     color: Colors.dark.primary,
-    letterSpacing: 1,
+    letterSpacing: 2,
   },
 
   activeDirHeader: {
-    marginBottom: 30,
-    backgroundColor: '#111',
-    padding: 20,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#333',
+    marginBottom: 35,
+    backgroundColor: 'transparent',
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   activeDirHeaderInner: {
     flexDirection: 'row',
@@ -533,17 +565,16 @@ const styles = StyleSheet.create({
   timelineCard: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: 'rgba(20, 20, 20, 0.7)',
     borderWidth: 1,
-    borderColor: '#222',
-    borderRadius: 8,
-    marginBottom: 20,
-    marginLeft: 10,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    marginBottom: 25,
+    marginLeft: 15,
   },
   timelineCardLocked: {
-    opacity: 0.6,
-    borderColor: '#1a1a1a',
-    backgroundColor: '#0f0f0f',
+    opacity: 0.4,
+    backgroundColor: 'rgba(10, 10, 10, 0.5)',
   },
   timelineCardCompleted: {
     borderColor: 'rgba(57, 255, 20, 0.3)',

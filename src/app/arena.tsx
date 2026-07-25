@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, ScrollView, View, Platform, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5, FontAwesome } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -14,10 +14,20 @@ export default function ArenaScreen() {
     ...safeAreaInsets,
     bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
   };
+  const scrollViewRef = useRef<any>(null);
+  const navigation = useNavigation();
   const router = useRouter();
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   return (
     <ScrollView
+      ref={scrollViewRef}
       style={styles.scrollView}
       contentInset={insets}
       contentContainerStyle={[styles.contentContainer, Platform.select({ web: { paddingTop: 80, paddingBottom: 80 } })]}

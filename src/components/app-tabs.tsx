@@ -18,6 +18,26 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
     return null;
   }
 
+  const handleTabPress = (routeName: string) => {
+    const route = state.routes.find(r => r.name === routeName);
+    if (!route) {
+      navigation.navigate(routeName as any);
+      return;
+    }
+    
+    const event = navigation.emit({
+      type: 'tabPress',
+      target: route.key,
+      canPreventDefault: true,
+    });
+
+    const isFocused = currentRouteName === routeName;
+
+    if (!isFocused && !event.defaultPrevented) {
+      navigation.navigate(routeName as any);
+    }
+  };
+
   return (
     <View style={[styles.tabBarContainer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <View style={styles.tabBarInner}>
@@ -27,7 +47,7 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
           icon="home" 
           label="Hub" 
           isFocused={state.index === 0} 
-          onPress={() => router.push({ pathname: '/', params: { reset: Date.now() } })} 
+          onPress={() => handleTabPress('index')} 
         />
 
         {/* Learn Tab */}
@@ -35,13 +55,13 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
           icon="book" 
           label="Learn" 
           isFocused={state.index === 1} // Assuming index 1
-          onPress={() => router.push({ pathname: '/learn', params: { reset: Date.now() } })} 
+          onPress={() => handleTabPress('learn')} 
         />
 
         {/* Center Glowing Code Button */}
         <Pressable 
           style={styles.centerButtonWrapper}
-          onPress={() => router.push({ pathname: '/arena', params: { reset: Date.now() } })}
+          onPress={() => handleTabPress('arena')}
         >
           <View style={styles.centerButtonGlow}>
             <FontAwesome5 name="code" size={24} color="#000000" />
@@ -54,7 +74,7 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
           icon="trophy" 
           label="Rank" 
           isFocused={state.index === 2} // Assuming index 2
-          onPress={() => router.push({ pathname: '/leaderboard', params: { reset: Date.now() } })} 
+          onPress={() => handleTabPress('leaderboard')} 
         />
 
         {/* Stats Tab */}
@@ -62,7 +82,7 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
           icon="bar-chart" 
           label="Stats" 
           isFocused={state.index === 3} 
-          onPress={() => router.push({ pathname: '/explore', params: { reset: Date.now() } })} 
+          onPress={() => handleTabPress('explore')} 
         />
 
       </View>

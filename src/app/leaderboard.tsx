@@ -1,7 +1,8 @@
-import React from 'react';
-import { StyleSheet, ScrollView, View, Platform, Image } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { StyleSheet, ScrollView, View, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
+import { useNavigation } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -15,6 +16,15 @@ export default function LeaderboardScreen() {
     bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
   };
   const { profile } = useAuth();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const mockUsers = [
     { rank: 1, name: 'ZER0_COOL', xp: 9500, title: 'CTO', isCurrentUser: false },
@@ -28,6 +38,7 @@ export default function LeaderboardScreen() {
 
   return (
     <ScrollView
+      ref={scrollViewRef}
       style={styles.scrollView}
       contentInset={insets}
       contentContainerStyle={[styles.contentContainer, Platform.select({ web: { paddingTop: 80, paddingBottom: 80 } })]}
