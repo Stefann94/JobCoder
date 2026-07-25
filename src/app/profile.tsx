@@ -5,6 +5,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { GlobalLoading } from '@/components/global-loading';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { Colors } from '@/constants/theme';
@@ -156,11 +157,7 @@ export default function ProfileScreen() {
   };
 
   if (isLoading) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color={Colors.dark.primary} />
-      </View>
-    );
+    return <GlobalLoading message="LOADING PROFILE" transparentBackground={false} />;
   }
 
   return (

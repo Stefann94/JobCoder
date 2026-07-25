@@ -10,7 +10,7 @@ import { Colors } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
 import { ProgressProvider } from '@/providers/ProgressProvider';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ActivityIndicator, View } from 'react-native';
+import { GlobalLoading } from '@/components/global-loading';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -18,11 +18,7 @@ function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useAuth();
   
   if (isLoading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: Colors.dark.background, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator color={Colors.dark.primary} size="large" />
-      </View>
-    );
+    return <GlobalLoading message="SYSTEM INIT" transparentBackground={false} />;
   }
 
   if (!isAuthenticated) {

@@ -3,9 +3,11 @@ import { StyleSheet, ScrollView, Pressable, View, Animated, Platform, BackHandle
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useFocusEffect, useNavigation, Stack } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { GlobalLoading } from '@/components/global-loading';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProgress } from '@/providers/ProgressProvider';
 import { 
@@ -165,6 +167,12 @@ export default function QuizScreen() {
     if (isCorrect) {
       setScore((prev) => prev + 1);
       setXpEarned((prev) => prev + 15); // 15 XP per correct answer
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      setTimeout(() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      }, 150);
     }
     
     setShowExplanationModal(true);
@@ -238,13 +246,7 @@ export default function QuizScreen() {
   };
 
   if (quizQuestions.length === 0) {
-    return (
-      <ThemedView style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <ThemedText>Loading questions...</ThemedText>
-        </SafeAreaView>
-      </ThemedView>
-    );
+    return <GlobalLoading message="LOADING QUEST" transparentBackground={false} />;
   }
 
   const currentQuestion = quizQuestions[currentIndex];

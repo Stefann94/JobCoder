@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager, ActivityIndicator, BackHandler } from 'react-native';
+import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
+import { GlobalLoading } from '@/components/global-loading';
 import { MaxContentWidth, Colors } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 
 // LayoutAnimation is enabled by default in the New Architecture (Fabric)
 
-type FileItem = { id: string; title: string; desc: string; type: 'doc' | 'exec'; xp: number; progress: number; isLocked?: boolean };
+type FileItem = { id: string; title: string; desc: string; type: 'doc' | 'exec'; xp: number; progress: number; isLocked?: boolean; tier?: 'core' | 'advanced' };
 type DirectoryItem = { id: string; title: string; desc: string; icon: string; color: string; files: FileItem[] };
 
 export default function LearnScreen() {
@@ -60,6 +61,7 @@ export default function LearnScreen() {
             xp: m.xp_reward,
             progress: 0,
             isLocked: false,
+            tier: m.tier || 'core',
           }))
         };
       });
@@ -115,28 +117,29 @@ export default function LearnScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/* Header */}
-      <View style={styles.header}>
-        <ThemedText style={styles.title}>{'>'} KNOWLEDGE_BASE</ThemedText>
-        <ThemedText style={styles.subtitle}>
-          {activeDir ? `// path: root/${activeDir.id}` : '// root/ - Select a directory to mount.'}
-        </ThemedText>
+      <View style={[styles.header, activeDir && { paddingBottom: 15 }]}>
+        {!activeDir ? (
+          <>
+            <ThemedText style={styles.title}>{'>'} KNOWLEDGE_BASE</ThemedText>
+            <ThemedText style={styles.subtitle}>
+              {'// root/ - Select a directory to mount.'}
+            </ThemedText>
+          </>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Pressable onPress={() => navigateToDir(null)} style={{ paddingRight: 15, paddingVertical: 5 }}>
+              <FontAwesome5 name="chevron-left" size={24} color={Colors.dark.primary} />
+            </Pressable>
+            <ThemedText style={[styles.title, { marginBottom: 0, flex: 1 }]} numberOfLines={1}>
+              {activeDir.title.toUpperCase()}
+            </ThemedText>
+            <FontAwesome5 name={activeDir.icon as any} size={24} color={activeDir.color} style={{ marginLeft: 10 }} />
+          </View>
+        )}
       </View>
 
-      {/* FIXED CD .. BACK BUTTON */}
-      {activeDir && (
-        <View style={styles.fixedBackButtonContainer}>
-          <Pressable style={styles.backButton} onPress={() => navigateToDir(null)}>
-            <FontAwesome5 name="chevron-left" size={14} color={Colors.dark.primary} />
-            <ThemedText style={styles.backButtonText}>cd ..</ThemedText>
-          </Pressable>
-        </View>
-      )}
-
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.dark.primary} />
-          <ThemedText style={styles.loadingText}>Fetching files from mainframe...</ThemedText>
-        </View>
+        <GlobalLoading message="FETCHING FILES" transparentBackground />
       ) : (
         <ScrollView
           style={styles.scrollView}
@@ -192,27 +195,25 @@ export default function LearnScreen() {
             // DIRECTORY LEVEL - SHOW FILES
             <View style={styles.fileSystem}>
 
-              <View style={styles.activeDirHeader}>
-                <View style={styles.activeDirHeaderInner}>
-                  <View style={[styles.gridCardIconWrapper, { borderColor: activeDir.color }]}>
-                    <FontAwesome5 name={activeDir.icon as any} size={20} color={activeDir.color} />
-                  </View>
-                  <ThemedText style={styles.activeDirTitle}>{activeDir.title}</ThemedText>
-                </View>
+              <View style={[styles.activeDirHeader, { marginTop: 0 }]}>
                 <ThemedText style={styles.dirDesc}>{activeDir.desc}</ThemedText>
               </View>
               
               <View style={styles.timelineContainer}>
-                {activeDir.files.map((file, index) => {
-                  const isLast = index === activeDir.files.length - 1;
+                
+                {/* CORE FUNDAMENTALS SECTION */}
+                <View style={styles.tierHeaderContainer}>
+                  <ThemedText style={[styles.tierHeader, { color: Colors.dark.primary }]}>[ CORE FUNDAMENTALS ]</ThemedText>
+                </View>
+                
+                {activeDir.files.filter(f => f.tier === 'core').map((file, index, arr) => {
+                  const isLast = index === arr.length - 1 && activeDir.files.filter(f => f.tier === 'advanced').length === 0;
                   const isCompleted = file.progress === 100;
                   const isLocked = file.isLocked;
-                  const nodeColor = isCompleted ? Colors.dark.primary : (isLocked ? '#333' : '#F59E0B');
+                  const nodeColor = isCompleted ? Colors.dark.primary : (isLocked ? '#333' : Colors.dark.primary);
 
                   return (
                     <View key={file.id} style={styles.timelineItem}>
-                      
-                      {/* Timeline Line & Node */}
                       <View style={styles.timelineVisual}>
                         <View style={[styles.timelineNode, { borderColor: nodeColor, backgroundColor: isCompleted ? Colors.dark.primary : '#111' }]}>
                           {isCompleted ? (
@@ -226,7 +227,6 @@ export default function LearnScreen() {
                         {!isLast && <View style={[styles.timelineLine, { backgroundColor: isCompleted ? Colors.dark.primary : '#333' }]} />}
                       </View>
                       
-                      {/* File Card */}
                       <Pressable 
                         onPress={() => handleFilePress(file)}
                         style={[styles.timelineCard, isLocked && styles.timelineCardLocked, isCompleted && styles.timelineCardCompleted]}
@@ -236,16 +236,10 @@ export default function LearnScreen() {
                             <ThemedText style={[styles.fileTitle, isLocked && styles.textLocked, isCompleted && styles.textCompleted]}>
                               {file.title}
                             </ThemedText>
-                            
                             <View style={styles.fileRight}>
                               {!isLocked && (
                                 <>
                                   <ThemedText style={styles.fileXp}>+{file.xp} XP</ThemedText>
-                                  {file.progress > 0 && (
-                                    <ThemedText style={[styles.fileProgress, isCompleted && { color: Colors.dark.primary }]}>
-                                      [{file.progress}%]
-                                    </ThemedText>
-                                  )}
                                 </>
                               )}
                             </View>
@@ -253,10 +247,64 @@ export default function LearnScreen() {
                           <ThemedText style={[styles.fileDesc, isLocked && styles.textLocked]}>{file.desc}</ThemedText>
                         </View>
                       </Pressable>
-                      
                     </View>
                   );
                 })}
+
+                {/* ADVANCED CONCEPTS SECTION */}
+                {activeDir.files.filter(f => f.tier === 'advanced').length > 0 && (
+                  <>
+                    <View style={styles.tierHeaderContainer}>
+                      <ThemedText style={[styles.tierHeader, { color: '#EF4444', marginTop: 20 }]}>[ ADVANCED CONCEPTS ]</ThemedText>
+                    </View>
+                    
+                    {activeDir.files.filter(f => f.tier === 'advanced').map((file, index, arr) => {
+                      const isLast = index === arr.length - 1;
+                      const isCompleted = file.progress === 100;
+                      const isLocked = file.isLocked;
+                      const nodeColor = isCompleted ? '#EF4444' : (isLocked ? '#333' : '#EF4444');
+
+                      return (
+                        <View key={file.id} style={styles.timelineItem}>
+                          <View style={styles.timelineVisual}>
+                            <View style={[styles.timelineNode, { borderColor: nodeColor, backgroundColor: isCompleted ? '#EF4444' : '#111' }]}>
+                              {isCompleted ? (
+                                <FontAwesome5 name="check" size={10} color="#000" />
+                              ) : isLocked ? (
+                                <FontAwesome5 name="lock" size={10} color="#555" />
+                              ) : (
+                                <View style={[styles.timelineNodeInner, { backgroundColor: '#EF4444' }]} />
+                              )}
+                            </View>
+                            {!isLast && <View style={[styles.timelineLine, { backgroundColor: isCompleted ? '#EF4444' : '#333' }]} />}
+                          </View>
+                          
+                          <Pressable 
+                            onPress={() => handleFilePress(file)}
+                            style={[styles.timelineCard, isLocked && styles.timelineCardLocked, isCompleted && { borderColor: '#EF4444' }]}
+                          >
+                            <View style={styles.fileMain}>
+                              <View style={styles.fileHeader}>
+                                <ThemedText style={[styles.fileTitle, isLocked && styles.textLocked, isCompleted && { color: '#EF4444' }]}>
+                                  {file.title}
+                                </ThemedText>
+                                <View style={styles.fileRight}>
+                                  {!isLocked && (
+                                    <>
+                                      <ThemedText style={[styles.fileXp, { color: '#EF4444' }]}>+{file.xp} XP</ThemedText>
+                                    </>
+                                  )}
+                                </View>
+                              </View>
+                              <ThemedText style={[styles.fileDesc, isLocked && styles.textLocked]}>{file.desc}</ThemedText>
+                            </View>
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                  </>
+                )}
+                
               </View>
             </View>
           )}
@@ -432,10 +480,20 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
     paddingRight: 10,
   },
-  timelineItem: {
-    flexDirection: 'row',
-    marginBottom: 0,
+  
+  tierHeaderContainer: {
+    marginLeft: 32, // align with cards
+    marginBottom: 15,
+    marginTop: 5,
   },
+  tierHeader: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 22,
+    letterSpacing: 1,
+  },
+  
+  timelineItem: { flexDirection: 'row', marginBottom: 20 },
+  
   timelineVisual: {
     width: 40,
     alignItems: 'center',

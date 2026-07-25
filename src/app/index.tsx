@@ -6,6 +6,7 @@ import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { GlobalLoading } from '@/components/global-loading';
 import { Spacing, MaxContentWidth, Colors } from '@/constants/theme';
 import { fetchCategories, Category, fetchDailyQuests, DailyQuest, fetchBossFights, BossFight } from '@/lib/api';
 import { useAuth } from '@/providers/AuthProvider';
@@ -111,12 +112,7 @@ export default function HomeScreen() {
             <ThemedText style={styles.sectionTitle}>SKILL TREES</ThemedText>
             
             {loading ? (
-              <View style={{ padding: 40, alignItems: 'center' }}>
-                <ActivityIndicator size="large" color={Colors.dark.primary} />
-                <ThemedText style={{ marginTop: 10, fontFamily: 'VT323_400Regular', color: Colors.dark.primary }}>
-                  Fetching Data from Cloud...
-                </ThemedText>
-              </View>
+              <GlobalLoading message="FETCHING CLOUD" transparentBackground />
             ) : (
               Object.entries(groupedCategories).map(([groupName, groupCats]) => (
                 <View key={groupName} style={{ marginBottom: Spacing.four, gap: Spacing.three }}>
