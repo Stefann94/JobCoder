@@ -297,30 +297,30 @@ export default function LearnScreen() {
                       const isLast = index === arr.length - 1;
                       const isCompleted = file.progress === 100;
                       const isLocked = file.isLocked;
-                      const nodeColor = isCompleted ? '#EF4444' : (isLocked ? '#333' : '#EF4444');
+                      const nodeColor = isLocked ? '#333' : '#EF4444';
 
                       return (
                         <View key={file.id} style={styles.timelineItem}>
                           <View style={styles.timelineVisual}>
-                            <View style={[styles.timelineNode, { borderColor: nodeColor, backgroundColor: isCompleted ? '#EF4444' : '#111' }]}>
+                            <View style={[styles.timelineNode, { borderColor: nodeColor, backgroundColor: '#111' }]}>
                               {isCompleted ? (
-                                <FontAwesome5 name="check" size={10} color="#000" />
+                                <View style={[styles.timelineNodeInner, { backgroundColor: Colors.dark.primary }]} />
                               ) : isLocked ? (
                                 <FontAwesome5 name="lock" size={10} color="#555" />
                               ) : (
-                                <View style={[styles.timelineNodeInner, { backgroundColor: '#EF4444' }]} />
+                                <View style={[styles.timelineNodeInner, { backgroundColor: '#F59E0B' }]} />
                               )}
                             </View>
-                            {!isLast && <View style={[styles.timelineLine, { backgroundColor: isCompleted ? '#EF4444' : '#333' }]} />}
+                            {!isLast && <View style={[styles.timelineLine, { backgroundColor: isCompleted ? Colors.dark.primary : '#333' }]} />}
                           </View>
                           
                           <Pressable 
                             onPress={() => handleFilePress(file)}
-                            style={[styles.timelineCard, isLocked && styles.timelineCardLocked, isCompleted && { borderColor: '#EF4444' }]}
+                            style={[styles.timelineCard, isLocked && styles.timelineCardLocked, isCompleted && { borderColor: Colors.dark.primary }]}
                           >
                             <View style={styles.fileMain}>
                               <View style={styles.fileHeader}>
-                                <ThemedText style={[styles.fileTitle, isLocked && styles.textLocked, isCompleted && { color: '#EF4444' }]}>
+                                <ThemedText style={[styles.fileTitle, isLocked && styles.textLocked, isCompleted && { color: Colors.dark.primary }]}>
                                   {file.title}
                                 </ThemedText>
                                 <View style={styles.fileRight}>
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
   },
   
   tierHeaderContainer: {
-    marginLeft: 32, // align with cards
+    marginLeft: 0,
     marginBottom: 15,
     marginTop: 5,
   },
