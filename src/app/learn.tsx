@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { GlobalLoading } from '@/components/global-loading';
@@ -20,6 +20,14 @@ export default function LearnScreen() {
   const [loading, setLoading] = useState(true);
   
   const [currentDirId, setCurrentDirId] = useState<string | null>(null);
+  
+  const { reset } = useLocalSearchParams<{ reset?: string }>();
+
+  useEffect(() => {
+    if (reset) {
+      setCurrentDirId(null);
+    }
+  }, [reset]);
 
   useEffect(() => {
     fetchLearningData();

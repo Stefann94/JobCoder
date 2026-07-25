@@ -27,7 +27,7 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
           icon="home" 
           label="Hub" 
           isFocused={state.index === 0} 
-          onPress={() => navigation.navigate('index')} 
+          onPress={() => router.push({ pathname: '/', params: { reset: Date.now() } })} 
         />
 
         {/* Learn Tab */}
@@ -35,13 +35,13 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
           icon="book" 
           label="Learn" 
           isFocused={state.index === 1} // Assuming index 1
-          onPress={() => navigation.navigate('learn')} 
+          onPress={() => router.push({ pathname: '/learn', params: { reset: Date.now() } })} 
         />
 
         {/* Center Glowing Code Button */}
         <Pressable 
           style={styles.centerButtonWrapper}
-          onPress={() => router.push('/arena')}
+          onPress={() => router.push({ pathname: '/arena', params: { reset: Date.now() } })}
         >
           <View style={styles.centerButtonGlow}>
             <FontAwesome5 name="code" size={24} color="#000000" />
@@ -54,7 +54,7 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
           icon="trophy" 
           label="Rank" 
           isFocused={state.index === 2} // Assuming index 2
-          onPress={() => navigation.navigate('leaderboard')} 
+          onPress={() => router.push({ pathname: '/leaderboard', params: { reset: Date.now() } })} 
         />
 
         {/* Stats Tab */}
@@ -62,7 +62,7 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
           icon="bar-chart" 
           label="Stats" 
           isFocused={state.index === 3} 
-          onPress={() => navigation.navigate('explore')} 
+          onPress={() => router.push({ pathname: '/explore', params: { reset: Date.now() } })} 
         />
 
       </View>
