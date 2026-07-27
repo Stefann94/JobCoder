@@ -29,10 +29,6 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, refreshProfile } = useAuth();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-
   // Profile States
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);

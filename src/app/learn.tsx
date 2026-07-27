@@ -94,23 +94,6 @@ export default function LearnScreen() {
 
       if (modError) throw modError;
 
-      // Fetch user progress for modules
-      let completedModules: { [id: string]: number } = {};
-      if (user) {
-        const { data: progressData } = await supabase
-          .from('user_progress')
-          .select('module_progress')
-          .eq('user_id', user.id);
-          
-        if (progressData) {
-          progressData.forEach(p => {
-            if (p.module_progress) {
-              completedModules = { ...completedModules, ...p.module_progress };
-            }
-          });
-        }
-      }
-
       // Build the directory structure based on categories
       const builtDirectories: DirectoryItem[] = categoriesData.map((cat: any) => {
         const catModules = modulesData.filter((m: any) => m.category_id === cat.id);
@@ -127,7 +110,7 @@ export default function LearnScreen() {
             desc: m.description,
             type: m.type === 'theory' ? 'doc' : 'exec',
             xp: m.xp_reward,
-            progress: completedModules[m.id] || 0,
+            progress: 0,
             isLocked: false,
             tier: m.tier || 'core',
             estimatedTime: m.estimated_time || 15,
