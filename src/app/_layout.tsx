@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, VT323_400Regular } from '@expo-google-fonts/vt323';
+import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
@@ -51,6 +52,9 @@ function RootLayoutNav() {
 export default function TabLayout() {
   const [loaded] = useFonts({
     VT323_400Regular,
+    Inter_400Regular,
+    Inter_600SemiBold,
+    Inter_700Bold,
   });
 
   useEffect(() => {

@@ -5,6 +5,7 @@ import { fetchUserProgress, updateUserProgress, UserProgress } from '@/lib/api';
 export interface CategoryProgress {
   progress_percent: number;
   completed_questions: string[];
+  module_progress?: Record<string, number>;
 }
 
 export type LocalProgress = Record<string, CategoryProgress>;
@@ -12,6 +13,7 @@ export type LocalProgress = Record<string, CategoryProgress>;
 interface ProgressContextType {
   progress: LocalProgress;
   updateProgress: (categoryId: string, percent: number, completedQuestions: string[]) => Promise<void>;
+  updateModuleProgress: (categoryId: string, moduleId: string, percent: number) => Promise<void>;
   resetProgress: () => Promise<void>;
   isLoadingProgress: boolean;
 }
@@ -19,6 +21,7 @@ interface ProgressContextType {
 const ProgressContext = createContext<ProgressContextType>({
   progress: {},
   updateProgress: async () => {},
+  updateModuleProgress: async () => {},
   resetProgress: async () => {},
   isLoadingProgress: true,
 });
@@ -37,6 +40,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
       local[p.category_id] = {
         progress_percent: p.progress_percent,
         completed_questions: p.completed_questions || [],
+        module_progress: p.module_progress || {},
       };
     });
     return local;
@@ -77,6 +81,35 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         category_id: categoryId,
         progress_percent: percent,
         completed_questions: completedQuestions,
+        module_progress: progress[categoryId]?.module_progress || {},
+      });
+    }
+  };
+
+  const updateModuleProgress = async (categoryId: string, moduleId: string, percent: number) => {
+    const categoryData = progress[categoryId] || { progress_percent: 0, completed_questions: [], module_progress: {} };
+    const currentModuleProgress = categoryData.module_progress || {};
+    
+    const newProgress = {
+      ...progress,
+      [categoryId]: {
+        ...categoryData,
+        module_progress: {
+          ...currentModuleProgress,
+          [moduleId]: percent
+        }
+      }
+    };
+    
+    setProgress(newProgress);
+
+    if (isAuthenticated && user) {
+      await updateUserProgress({
+        user_id: user.id,
+        category_id: categoryId,
+        progress_percent: categoryData.progress_percent,
+        completed_questions: categoryData.completed_questions,
+        module_progress: newProgress[categoryId].module_progress,
       });
     }
   };
@@ -86,7 +119,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ProgressContext.Provider value={{ progress, updateProgress, resetProgress, isLoadingProgress }}>
+    <ProgressContext.Provider value={{ progress, updateProgress, updateModuleProgress, resetProgress, isLoadingProgress }}>
       {children}
     </ProgressContext.Provider>
   );

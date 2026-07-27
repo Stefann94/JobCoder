@@ -63,6 +63,7 @@ export interface UserProgress {
   category_id: string;
   completed_questions: string[];
   progress_percent: number;
+  module_progress?: Record<string, number>;
   updated_at?: string;
 }
 

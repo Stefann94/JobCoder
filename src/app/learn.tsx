@@ -10,6 +10,7 @@ import { GlobalLoading } from '@/components/global-loading';
 import { MaxContentWidth, Colors } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
+import { useProgress } from '@/providers/ProgressProvider';
 
 // LayoutAnimation is enabled by default in the New Architecture (Fabric)
 
@@ -26,12 +27,16 @@ export default function LearnScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
+  const [rawCategories, setRawCategories] = useState<any[]>([]);
+  const [rawModules, setRawModules] = useState<any[]>([]);
+  
   const [currentDirId, setCurrentDirId] = useState<string | null>(null);
   const [blinkingModuleId, setBlinkingModuleId] = useState<string | null>(null);
   
   const layouts = useRef<Record<string, number>>({});
   const blinkAnim = useRef(new Animated.Value(0)).current;
   const { user } = useAuth();
+  const { progress } = useProgress();
   
   const navigation = useNavigation();
 
@@ -95,51 +100,8 @@ export default function LearnScreen() {
 
       if (modError) throw modError;
 
-      // Fetch user progress for modules
-      let completedModules: { [id: string]: number } = {};
-      if (user) {
-        const { data: progressData } = await supabase
-          .from('user_progress')
-          .select('module_progress')
-          .eq('user_id', user.id);
-          
-        if (progressData) {
-          progressData.forEach(p => {
-            if (p.module_progress) {
-              completedModules = { ...completedModules, ...p.module_progress };
-            }
-          });
-        }
-      }
-
-      // Build the directory structure based on categories
-      const builtDirectories: DirectoryItem[] = categoriesData.map((cat: any) => {
-        const catModules = modulesData.filter((m: any) => m.category_id === cat.id);
-        
-        return {
-          id: cat.id,
-          title: cat.title,
-          desc: cat.description,
-          icon: cat.icon || 'folder',
-          color: cat.color || Colors.dark.primary,
-          files: catModules.map((m: any) => ({
-            id: m.id,
-            title: m.title,
-            desc: m.description,
-            type: m.type === 'theory' ? 'doc' : 'exec',
-            xp: m.xp_reward,
-            progress: completedModules[m.id] || 0,
-            isLocked: false,
-            tier: m.tier || 'core',
-            estimatedTime: m.estimated_time || 15,
-          }))
-        };
-      });
-
-      // Keep only categories that have at least one theory file defined
-      const activeDirectories = builtDirectories.filter(dir => dir.files.length > 0);
-      
-      setDirectories(activeDirectories);
+      setRawCategories(categoriesData);
+      setRawModules(modulesData);
     } catch (error) {
       console.error('Error fetching learning data:', error);
     } finally {
@@ -147,6 +109,45 @@ export default function LearnScreen() {
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    if (rawCategories.length === 0 || rawModules.length === 0) return;
+
+    let completedModules: { [id: string]: number } = {};
+    Object.values(progress).forEach(catData => {
+      if (catData.module_progress) {
+        completedModules = { ...completedModules, ...catData.module_progress };
+      }
+    });
+
+    const builtDirectories: DirectoryItem[] = rawCategories.map((cat: any) => {
+      const catModules = rawModules.filter((m: any) => m.category_id === cat.id);
+      
+      return {
+        id: cat.id,
+        title: cat.title,
+        desc: cat.description,
+        icon: cat.icon || 'folder',
+        color: cat.color || Colors.dark.primary,
+        files: catModules.map((m: any) => ({
+          id: m.id,
+          title: m.title,
+          desc: m.description,
+          type: m.type === 'theory' ? 'doc' : 'exec',
+          xp: m.xp_reward,
+          progress: completedModules[m.id] || 0,
+          isLocked: false,
+          tier: m.tier || 'core',
+          estimatedTime: m.estimated_time || 15,
+        }))
+      };
+    });
+
+    const activeDirectories = builtDirectories.filter(dir => dir.files.length > 0);
+    setDirectories(activeDirectories);
+  }, [rawCategories, rawModules, progress]);
+
+
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

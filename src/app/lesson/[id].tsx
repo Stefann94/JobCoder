@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, FlatList, Pressable, Dimensions, ActivityIndicator, Animated, BackHandler, ScrollView, Modal } from 'react-native';
+import { View, StyleSheet, FlatList, Pressable, Dimensions, ActivityIndicator, Animated, BackHandler, ScrollView, Modal, TouchableOpacity } from 'react-native';
+import { ScrollView as GHScrollView, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -10,6 +11,7 @@ import { Colors } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { addXpToProfile } from '@/lib/api';
 import { useAuth } from '@/providers/AuthProvider';
+import { useProgress } from '@/providers/ProgressProvider';
 
 const { width } = Dimensions.get('window');
 
@@ -43,12 +45,22 @@ const parseSlideContent = (text: string): Block[] => {
   return blocks;
 };
 
-const SlideItem = ({ item, index, currentIndex, scrollX }: { item: string, index: number, currentIndex: number, scrollX: Animated.Value }) => {
+const SlideItem = ({ item, index, currentIndex, scrollX, isLastSlide, onComplete }: { item: string, index: number, currentIndex: number, scrollX: Animated.Value, isLastSlide: boolean, onComplete: () => void }) => {
   const scrollViewRef = useRef<ScrollView>(null);
+  const codeScrollRefs = useRef<{ [key: number]: ScrollView | null }>({});
 
   useEffect(() => {
-    if (currentIndex === index && scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({ y: 0, animated: false });
+    // Reset scroll when slide becomes INACTIVE (swiped away).
+    // This ensures it is already at the top when the user swipes back to it.
+    if (currentIndex !== index) {
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y: 0, animated: false });
+      }
+      Object.values(codeScrollRefs.current).forEach(ref => {
+        if (ref) {
+          ref.scrollTo({ x: 0, animated: false });
+        }
+      });
     }
   }, [currentIndex, index]);
 
@@ -87,13 +99,33 @@ const SlideItem = ({ item, index, currentIndex, scrollX }: { item: string, index
         >
           {parseSlideContent(item).map((block, i) => {
             if (block.type === 'TITLE') {
-              return <ThemedText key={i} style={markdownStyles.heading1}>{block.content}</ThemedText>;
+              return (
+                <ThemedText key={i} style={[markdownStyles.heading1, { marginBottom: 20 }]}>
+                  {block.content.trim()}
+                </ThemedText>
+              );
             }
             if (block.type === 'SUBTITLE') {
               return <ThemedText key={i} style={markdownStyles.heading2}>{block.content}</ThemedText>;
             }
             if (block.type === 'PARAGRAPH') {
-              return <ThemedText key={i} style={markdownStyles.body}>{block.content}</ThemedText>;
+              const textParts = block.content.split('\n').filter(t => t.trim().length > 0);
+              return (
+                <View key={i} style={{ marginBottom: 15 }}>
+                  {textParts.map((part, index) => {
+                    const isBullet = part.trim().startsWith('-') || part.trim().startsWith('•');
+                    const cleanText = isBullet ? part.trim().substring(1).trim() : part.trim();
+                    return (
+                      <View key={index} style={{ flexDirection: 'row', marginBottom: 8, paddingLeft: isBullet ? 10 : 0 }}>
+                        {isBullet && <ThemedText style={[markdownStyles.body, { marginRight: 10, color: Colors.dark.primary }]}>•</ThemedText>}
+                        <ThemedText style={[markdownStyles.body, { flex: 1 }]}>
+                          {cleanText}
+                        </ThemedText>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
             }
             if (block.type === 'CODE') {
               return (
@@ -106,23 +138,48 @@ const SlideItem = ({ item, index, currentIndex, scrollX }: { item: string, index
                     </View>
                     <ThemedText style={markdownStyles.code_lang}>{block.language}</ThemedText>
                   </View>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 15 }}>
+                  <GHScrollView 
+                    ref={el => codeScrollRefs.current[i] = el as any}
+                    horizontal 
+                    showsHorizontalScrollIndicator={false} 
+                    contentContainerStyle={{ padding: 10 }}
+                  >
                     <ThemedText style={markdownStyles.code_text}>
                       {block.content}
                     </ThemedText>
-                  </ScrollView>
+                    </GHScrollView>
                 </View>
               );
             }
             if (block.type === 'ALERT') {
               return (
-                <View key={i} style={markdownStyles.blockquote}>
-                  <ThemedText style={{ color: Colors.dark.primary }}>{block.content}</ThemedText>
+                <View key={i} style={[markdownStyles.blockquote, { flexDirection: 'row', alignItems: 'center' }]}>
+                  <FontAwesome5 name="lightbulb" size={20} color={Colors.dark.primary} solid style={{ marginRight: 15 }} />
+                  <ThemedText style={{ color: Colors.dark.primary, flexShrink: 1, fontFamily: 'Inter_400Regular', lineHeight: 24 }}>{block.content}</ThemedText>
                 </View>
               );
             }
             return null;
           })}
+
+          {isLastSlide && (
+            <TouchableOpacity 
+              style={{
+                marginTop: 40,
+                backgroundColor: Colors.dark.primary,
+                paddingVertical: 15,
+                borderRadius: 8,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: 10,
+              }}
+              onPress={onComplete}
+            >
+              <FontAwesome5 name="check-circle" size={20} color="#000" solid />
+              <ThemedText style={{ color: '#000', fontFamily: 'VT323_400Regular', fontSize: 24, letterSpacing: 1 }}>FINISH & RETURN</ThemedText>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
     </Animated.View>
@@ -142,12 +199,12 @@ export default function LessonScreen() {
   const params = useLocalSearchParams();
   const moduleId = params.id as string;
   const { refreshProfile } = useAuth();
+  const { updateModuleProgress, progress } = useProgress();
 
   const [module, setModule] = useState<LessonModule | null>(null);
   const [slides, setSlides] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [maxProgressReached, setMaxProgressReached] = useState(0);
 
   const flatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -188,22 +245,19 @@ export default function LessonScreen() {
 
   // Update animated progress bar when currentIndex changes
   useEffect(() => {
-    if (slides.length > 0) {
+    if (slides.length > 0 && module) {
       const targetPercent = slides.length > 1 ? Math.round((currentIndex / (slides.length - 1)) * 100) : 100;
       
       Animated.timing(progressAnim, {
         toValue: targetPercent,
-        duration: 300, // Smooth transition
-        useNativeDriver: false, // width interpolation doesn't support native driver
+        duration: 300, 
+        useNativeDriver: false,
       }).start();
 
-      // Only save if it's a new high score for progress to prevent unnecessary DB spam
-      if (targetPercent > maxProgressReached) {
-        setMaxProgressReached(targetPercent);
-        saveProgress(targetPercent);
-      }
+      // Save live progress exactly as the current slide percentage (even if it goes down)
+      updateModuleProgress(module.category_id, module.id, targetPercent);
     }
-  }, [currentIndex, slides]);
+  }, [currentIndex, slides, module]);
 
   const fetchModule = async () => {
     try {
@@ -230,52 +284,31 @@ export default function LessonScreen() {
     }
   };
 
-  const handleNext = () => {
-    if (currentIndex < slides.length - 1) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      flatListRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
-    }
-  };
-
-  const saveProgress = async (percent: number) => {
+  const handleFinish = async () => {
     if (!module) return;
     
     try {
       const { data: profile } = await supabase.auth.getUser();
       if (profile?.user) {
-        // Fetch current progress object
-        const { data: progressData } = await supabase
-          .from('user_progress')
-          .select('module_progress')
-          .eq('user_id', profile.user.id)
-          .eq('category_id', module.category_id)
-          .single();
-          
-        let modProgress = progressData?.module_progress || {};
-        const currentSaved = modProgress[module.id] || 0;
-
-        if (percent > currentSaved) {
-          modProgress[module.id] = percent;
-          
-          await supabase
-            .from('user_progress')
-            .upsert({
-              user_id: profile.user.id,
-              category_id: module.category_id,
-              module_progress: modProgress
-            }, { onConflict: 'user_id, category_id' });
-            
-          // If first time reaching 100%, grant exactly 20 XP as requested
-          if (percent === 100 && currentSaved < 100) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            await addXpToProfile(profile.user.id, 20);
-            await refreshProfile();
-          }
+        // Prevent XP farming by checking if they already completed this module
+        const wasAlreadyCompleted = progress[module.category_id]?.module_progress?.[module.id] === 100;
+        
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        
+        // Mark as 100% just in case
+        await updateModuleProgress(module.category_id, module.id, 100);
+        
+        // Only award XP if it's the first time they finish this module
+        if (!wasAlreadyCompleted) {
+          await addXpToProfile(profile.user.id, module.xp_reward || 0);
+          await refreshProfile();
         }
       }
     } catch (e) {
-      console.error('Error saving live progress', e);
+      console.error('Error completing lesson', e);
     }
+    
+    router.navigate({ pathname: '/learn', params: { returnToCategory: module.category_id, returnToModule: module.id } });
   };
 
   const onMomentumScrollEnd = (e: any) => {
@@ -313,20 +346,22 @@ export default function LessonScreen() {
 
   if (!module) {
     return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container}>
         <ThemedText style={{ color: '#EF4444' }}>Error loading module.</ThemedText>
         <Pressable onPress={() => router.navigate('/learn')} style={styles.closeBtn}>
           <ThemedText>Go Back</ThemedText>
         </Pressable>
       </SafeAreaView>
+      </GestureHandlerRootView>
     );
   }
 
   const progressPercent = slides.length > 1 ? Math.round((currentIndex / (slides.length - 1)) * 100) : 100;
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Pressable 
           onPress={() => {
@@ -341,7 +376,6 @@ export default function LessonScreen() {
           <FontAwesome5 name="times" size={24} color="#888" />
         </Pressable>
         
-        {/* Progress Bar Container */}
         <View style={styles.progressWrapper}>
           <View style={styles.progressContainer}>
             <Animated.View 
@@ -361,16 +395,14 @@ export default function LessonScreen() {
         </View>
       </View>
 
-      {/* Title */}
       <View style={styles.titleContainer}>
         <ThemedText style={styles.moduleTitle}>{module.title}</ThemedText>
       </View>
 
-      {/* Slides */}
       <Animated.FlatList
         ref={flatListRef}
         data={slides}
-        keyExtractor={(_, index) => index.toString()}
+        keyExtractor={(item, index) => `${moduleId}-${index}`}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
@@ -386,12 +418,12 @@ export default function LessonScreen() {
             index={index} 
             currentIndex={currentIndex} 
             scrollX={scrollX} 
+            isLastSlide={index === slides.length - 1}
+            onComplete={handleFinish}
           />
         )}
       />
 
-
-      {/* Footer Controls (Hint only) */}
       {currentIndex < slides.length - 1 && (
         <View style={styles.footer}>
           <View style={styles.swipeHint}>
@@ -401,7 +433,6 @@ export default function LessonScreen() {
         </View>
       )}
 
-      {/* Tutorial Overlay */}
       <Modal visible={showTutorial} transparent={true} animationType="fade">
         <Pressable style={styles.tutorialOverlay} onPress={() => setShowTutorial(false)}>
           <View style={styles.tutorialContent}>
@@ -415,6 +446,7 @@ export default function LessonScreen() {
         </Pressable>
       </Modal>
     </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -548,14 +580,14 @@ const styles = StyleSheet.create({
 
 const markdownStyles = {
   body: {
-    color: '#E0E0E0',
-    fontSize: 17,
+    color: '#D1D5DB', // Softer, premium gray
+    fontSize: 16,
     lineHeight: 26,
-    fontFamily: 'sans-serif',
+    fontFamily: 'Inter_400Regular',
   },
   heading1: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 34,
+    fontSize: 28,
     color: Colors.dark.primary,
     marginBottom: 20,
     marginTop: 0,
@@ -564,7 +596,7 @@ const markdownStyles = {
   },
   heading2: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 28,
+    fontSize: 24,
     color: '#FFF',
     marginBottom: 15,
     marginTop: 20,
@@ -584,17 +616,17 @@ const markdownStyles = {
     backgroundColor: '#0F0F0F',
   },
   code_header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'row' as any,
+    alignItems: 'center' as any,
+    justifyContent: 'space-between' as any,
     backgroundColor: '#1A1A1A',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#333',
   },
   mac_buttons: {
-    flexDirection: 'row',
+    flexDirection: 'row' as any,
     gap: 6,
   },
   mac_btn: {
@@ -605,14 +637,14 @@ const markdownStyles = {
   code_lang: {
     fontFamily: 'monospace',
     color: '#888',
-    fontSize: 12,
+    fontSize: 10,
     textTransform: 'uppercase' as any,
   },
   code_text: {
     fontFamily: 'monospace',
     color: '#50FA7B', // Dracula Green
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 12,
+    lineHeight: 18,
   },
   code_inline: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -621,20 +653,20 @@ const markdownStyles = {
     paddingVertical: 2,
     borderRadius: 4,
     fontFamily: 'monospace',
-    fontSize: 15,
+    fontSize: 14,
   },
   strong: {
     color: '#FFF',
-    fontWeight: 'bold' as any,
+    fontFamily: 'Inter_700Bold',
   },
   blockquote: {
     backgroundColor: 'rgba(57, 255, 20, 0.05)',
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.dark.primary,
+    borderWidth: 1,
+    borderColor: 'rgba(57, 255, 20, 0.3)',
     paddingHorizontal: 15,
     paddingVertical: 12,
     marginVertical: 15,
-    borderRadius: 4,
+    borderRadius: 8,
   },
   list_item: {
     marginBottom: 10,
