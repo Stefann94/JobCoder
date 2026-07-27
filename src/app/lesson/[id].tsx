@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, FlatList, Pressable, Dimensions, ActivityIndicator, Animated, BackHandler, ScrollView } from 'react-native';
+import { View, StyleSheet, FlatList, Pressable, Dimensions, ActivityIndicator, Animated, BackHandler, ScrollView, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -43,6 +43,92 @@ const parseSlideContent = (text: string): Block[] => {
   return blocks;
 };
 
+const SlideItem = ({ item, index, currentIndex, scrollX }: { item: string, index: number, currentIndex: number, scrollX: Animated.Value }) => {
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (currentIndex === index && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: false });
+    }
+  }, [currentIndex, index]);
+
+  const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
+
+  const rotateY = scrollX.interpolate({
+    inputRange,
+    outputRange: ['60deg', '0deg', '-60deg'],
+    extrapolate: 'clamp',
+  });
+
+  const opacity = scrollX.interpolate({
+    inputRange: [(index - 0.5) * width, index * width, (index + 0.5) * width],
+    outputRange: [0.3, 1, 0.3],
+    extrapolate: 'clamp',
+  });
+
+  return (
+    <Animated.View 
+      style={[
+        styles.slideContainer,
+        { 
+          opacity,
+          transform: [
+            { perspective: 1000 },
+            { rotateY }
+          ]
+        }
+      ]}
+    >
+      <View style={styles.slideCard}>
+        <ScrollView 
+          ref={scrollViewRef}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 20 }}
+        >
+          {parseSlideContent(item).map((block, i) => {
+            if (block.type === 'TITLE') {
+              return <ThemedText key={i} style={markdownStyles.heading1}>{block.content}</ThemedText>;
+            }
+            if (block.type === 'SUBTITLE') {
+              return <ThemedText key={i} style={markdownStyles.heading2}>{block.content}</ThemedText>;
+            }
+            if (block.type === 'PARAGRAPH') {
+              return <ThemedText key={i} style={markdownStyles.body}>{block.content}</ThemedText>;
+            }
+            if (block.type === 'CODE') {
+              return (
+                <View key={i} style={markdownStyles.code_block_wrapper}>
+                  <View style={markdownStyles.code_header}>
+                    <View style={markdownStyles.mac_buttons}>
+                      <View style={[markdownStyles.mac_btn, { backgroundColor: '#FF5F56' }]} />
+                      <View style={[markdownStyles.mac_btn, { backgroundColor: '#FFBD2E' }]} />
+                      <View style={[markdownStyles.mac_btn, { backgroundColor: '#27C93F' }]} />
+                    </View>
+                    <ThemedText style={markdownStyles.code_lang}>{block.language}</ThemedText>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 15 }}>
+                    <ThemedText style={markdownStyles.code_text}>
+                      {block.content}
+                    </ThemedText>
+                  </ScrollView>
+                </View>
+              );
+            }
+            if (block.type === 'ALERT') {
+              return (
+                <View key={i} style={markdownStyles.blockquote}>
+                  <ThemedText style={{ color: Colors.dark.primary }}>{block.content}</ThemedText>
+                </View>
+              );
+            }
+            return null;
+          })}
+        </ScrollView>
+      </View>
+    </Animated.View>
+  );
+};
+
 type LessonModule = {
   id: string;
   title: string;
@@ -66,6 +152,33 @@ export default function LessonScreen() {
   const flatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const scrollX = useRef(new Animated.Value(0)).current;
+
+  const [showTutorial, setShowTutorial] = useState(true);
+  const tutorialY = useRef(new Animated.Value(0)).current;
+  const tutorialX = useRef(new Animated.Value(0)).current;
+  const tutorialOpacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (showTutorial) {
+      Animated.loop(
+        Animated.sequence([
+          // Vertical swipe animation
+          Animated.timing(tutorialY, { toValue: -80, duration: 800, useNativeDriver: true }),
+          Animated.timing(tutorialOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+          Animated.timing(tutorialY, { toValue: 0, duration: 0, useNativeDriver: true }),
+          Animated.timing(tutorialOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+          Animated.delay(300),
+
+          // Horizontal swipe animation
+          Animated.timing(tutorialX, { toValue: -80, duration: 800, useNativeDriver: true }),
+          Animated.timing(tutorialOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+          Animated.timing(tutorialX, { toValue: 0, duration: 0, useNativeDriver: true }),
+          Animated.timing(tutorialOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+          Animated.delay(300),
+        ])
+      ).start();
+    }
+  }, [showTutorial]);
 
   useEffect(() => {
     if (moduleId) {
@@ -267,83 +380,16 @@ export default function LessonScreen() {
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: true }
         )}
-        renderItem={({ item, index }) => {
-          const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
-
-          const rotateY = scrollX.interpolate({
-            inputRange,
-            outputRange: ['60deg', '0deg', '-60deg'],
-            extrapolate: 'clamp',
-          });
-
-          const opacity = scrollX.interpolate({
-            inputRange: [(index - 0.5) * width, index * width, (index + 0.5) * width],
-            outputRange: [0.3, 1, 0.3],
-            extrapolate: 'clamp',
-          });
-
-          return (
-            <Animated.View 
-              style={[
-                styles.slideContainer,
-                { 
-                  opacity,
-                  transform: [
-                    { perspective: 1000 },
-                    { rotateY }
-                  ]
-                }
-              ]}
-            >
-              <View style={styles.slideCard}>
-                <ScrollView 
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ paddingBottom: 20 }}
-                >
-                  {parseSlideContent(item).map((block, i) => {
-                    if (block.type === 'TITLE') {
-                      return <ThemedText key={i} style={markdownStyles.heading1}>{block.content}</ThemedText>;
-                    }
-                    if (block.type === 'SUBTITLE') {
-                      return <ThemedText key={i} style={markdownStyles.heading2}>{block.content}</ThemedText>;
-                    }
-                    if (block.type === 'PARAGRAPH') {
-                      return <ThemedText key={i} style={markdownStyles.body}>{block.content}</ThemedText>;
-                    }
-                    if (block.type === 'CODE') {
-                      return (
-                        <View key={i} style={markdownStyles.code_block_wrapper}>
-                          <View style={markdownStyles.code_header}>
-                            <View style={markdownStyles.mac_buttons}>
-                              <View style={[markdownStyles.mac_btn, { backgroundColor: '#FF5F56' }]} />
-                              <View style={[markdownStyles.mac_btn, { backgroundColor: '#FFBD2E' }]} />
-                              <View style={[markdownStyles.mac_btn, { backgroundColor: '#27C93F' }]} />
-                            </View>
-                            <ThemedText style={markdownStyles.code_lang}>{block.language}</ThemedText>
-                          </View>
-                          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 15 }}>
-                            <ThemedText style={markdownStyles.code_text}>
-                              {block.content}
-                            </ThemedText>
-                          </ScrollView>
-                        </View>
-                      );
-                    }
-                    if (block.type === 'ALERT') {
-                      return (
-                        <View key={i} style={markdownStyles.blockquote}>
-                          <ThemedText style={{ color: Colors.dark.primary }}>{block.content}</ThemedText>
-                        </View>
-                      );
-                    }
-                    return null;
-                  })}
-                </ScrollView>
-              </View>
-            </Animated.View>
-          );
-        }}
+        renderItem={({ item, index }) => (
+          <SlideItem 
+            item={item} 
+            index={index} 
+            currentIndex={currentIndex} 
+            scrollX={scrollX} 
+          />
+        )}
       />
+
 
       {/* Footer Controls (Hint only) */}
       {currentIndex < slides.length - 1 && (
@@ -354,6 +400,20 @@ export default function LessonScreen() {
           </View>
         </View>
       )}
+
+      {/* Tutorial Overlay */}
+      <Modal visible={showTutorial} transparent={true} animationType="fade">
+        <Pressable style={styles.tutorialOverlay} onPress={() => setShowTutorial(false)}>
+          <View style={styles.tutorialContent}>
+            <Animated.View style={{ transform: [{ translateY: tutorialY }, { translateX: tutorialX }], opacity: tutorialOpacity }}>
+              <FontAwesome5 name="hand-pointer" size={60} color={Colors.dark.primary} solid />
+            </Animated.View>
+            <ThemedText style={styles.tutorialText}>
+              Swipe Up/Down to scroll.{'\n'}Swipe Left for the next page.{'\n\n'}(Tap anywhere to close)
+            </ThemedText>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -464,6 +524,25 @@ const styles = StyleSheet.create({
     fontFamily: 'VT323_400Regular',
     fontSize: 18,
     color: '#F59E0B',
+  },
+  tutorialOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tutorialContent: {
+    alignItems: 'center',
+    gap: 30,
+    padding: 30,
+  },
+  tutorialText: {
+    fontFamily: 'VT323_400Regular',
+    color: '#FFF',
+    fontSize: 26,
+    textAlign: 'center',
+    lineHeight: 34,
+    letterSpacing: 1,
   },
 });
 
