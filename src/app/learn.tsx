@@ -1,26 +1,37 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager, BackHandler, RefreshControl } from 'react-native';
+import { StyleSheet, ScrollView, View, Pressable, Platform, LayoutAnimation, UIManager, BackHandler, RefreshControl, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { useRouter, useFocusEffect, useNavigation } from 'expo-router';
+import { useRouter, useFocusEffect, useNavigation, useLocalSearchParams } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/themed-text';
 import { GlobalLoading } from '@/components/global-loading';
 import { MaxContentWidth, Colors } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/providers/AuthProvider';
 
 // LayoutAnimation is enabled by default in the New Architecture (Fabric)
 
 type FileItem = { id: string; title: string; desc: string; type: 'doc' | 'exec'; xp: number; progress: number; isLocked?: boolean; tier?: 'core' | 'advanced'; estimatedTime?: number };
 type DirectoryItem = { id: string; title: string; desc: string; icon: string; color: string; files: FileItem[] };
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export default function LearnScreen() {
   const router = useRouter();
+  const { returnToCategory, returnToModule } = useLocalSearchParams<{ returnToCategory?: string, returnToModule?: string }>();
+  
   const [directories, setDirectories] = useState<DirectoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
   const [currentDirId, setCurrentDirId] = useState<string | null>(null);
+  const [blinkingModuleId, setBlinkingModuleId] = useState<string | null>(null);
+  
+  const layouts = useRef<Record<string, number>>({});
+  const blinkAnim = useRef(new Animated.Value(0)).current;
+  const { user } = useAuth();
   
   const navigation = useNavigation();
 
@@ -36,6 +47,34 @@ export default function LearnScreen() {
   useEffect(() => {
     fetchLearningData();
   }, []);
+
+  // Handle return parameters
+  useEffect(() => {
+    if (returnToCategory && returnToCategory !== currentDirId) {
+      setCurrentDirId(returnToCategory);
+    }
+  }, [returnToCategory]);
+
+  useEffect(() => {
+    if (returnToModule && currentDirId === returnToCategory) {
+      setTimeout(() => {
+        const yPos = layouts.current[returnToModule];
+        if (yPos !== undefined) {
+          scrollViewRef.current?.scrollTo({ y: Math.max(0, yPos - 50), animated: true });
+          
+          setBlinkingModuleId(returnToModule);
+          blinkAnim.setValue(0);
+          
+          Animated.sequence([
+            Animated.timing(blinkAnim, { toValue: 1, duration: 300, useNativeDriver: false }),
+            Animated.timing(blinkAnim, { toValue: 0, duration: 300, useNativeDriver: false }),
+            Animated.timing(blinkAnim, { toValue: 1, duration: 300, useNativeDriver: false }),
+            Animated.timing(blinkAnim, { toValue: 0, duration: 300, useNativeDriver: false }),
+          ]).start(() => setBlinkingModuleId(null));
+        }
+      }, 400); // Wait for render and layouts to populate
+    }
+  }, [returnToModule, currentDirId, returnToCategory]);
 
   const fetchLearningData = async () => {
     try {
@@ -55,6 +94,23 @@ export default function LearnScreen() {
 
       if (modError) throw modError;
 
+      // Fetch user progress for modules
+      let completedModules: { [id: string]: number } = {};
+      if (user) {
+        const { data: progressData } = await supabase
+          .from('user_progress')
+          .select('module_progress')
+          .eq('user_id', user.id);
+          
+        if (progressData) {
+          progressData.forEach(p => {
+            if (p.module_progress) {
+              completedModules = { ...completedModules, ...p.module_progress };
+            }
+          });
+        }
+      }
+
       // Build the directory structure based on categories
       const builtDirectories: DirectoryItem[] = categoriesData.map((cat: any) => {
         const catModules = modulesData.filter((m: any) => m.category_id === cat.id);
@@ -71,7 +127,7 @@ export default function LearnScreen() {
             desc: m.description,
             type: m.type === 'theory' ? 'doc' : 'exec',
             xp: m.xp_reward,
-            progress: 0,
+            progress: completedModules[m.id] || 0,
             isLocked: false,
             tier: m.tier || 'core',
             estimatedTime: m.estimated_time || 15,
@@ -108,9 +164,14 @@ export default function LearnScreen() {
     scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   };
 
-  const handleFilePress = (file: FileItem) => {
-    if (file.isLocked) return;
-    // router.push(`/lesson/${file.id}`)
+  const handleFilePress = (file: any) => {
+    if (file.isLocked) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/lesson/${file.id}`);
   };
 
   useFocusEffect(
@@ -136,6 +197,16 @@ export default function LearnScreen() {
   const coreIds = ['frontend', 'backend', 'database', 'algorithms'];
   const coreDirectories = directories.filter(dir => coreIds.includes(dir.id));
   const advancedDirectories = directories.filter(dir => !coreIds.includes(dir.id));
+
+  const animatedBorderColor = blinkAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(255, 255, 255, 0.05)', 'rgba(57, 255, 20, 1)']
+  });
+  
+  const animatedBgColor = blinkAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(20, 20, 20, 0.7)', 'rgba(57, 255, 20, 0.15)']
+  });
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -244,44 +315,62 @@ export default function LearnScreen() {
                   const nodeColor = isCompleted ? Colors.dark.primary : (isLocked ? '#333' : Colors.dark.primary);
 
                   return (
-                    <View key={file.id} style={styles.timelineItem}>
-                      <View style={styles.timelineVisual}>
-                        <View style={[styles.timelineNode, { borderColor: nodeColor, backgroundColor: isCompleted ? Colors.dark.primary : '#111' }]}>
-                          {isCompleted ? (
-                            <FontAwesome5 name="check" size={10} color="#000" />
-                          ) : isLocked ? (
-                            <FontAwesome5 name="lock" size={10} color="#555" />
-                          ) : (
-                            <View style={styles.timelineNodeInner} />
+                      <View 
+                        key={file.id} 
+                        style={styles.timelineItem}
+                        onLayout={(e) => layouts.current[file.id] = e.nativeEvent.layout.y}
+                      >
+                        <View style={styles.timelineVisual}>
+                          <View style={[styles.timelineNode, { borderColor: nodeColor, backgroundColor: isCompleted ? Colors.dark.primary : '#111' }]}>
+                            {isCompleted ? (
+                              <FontAwesome5 name="check" size={10} color="#000" />
+                            ) : isLocked ? (
+                              <FontAwesome5 name="lock" size={10} color="#555" />
+                            ) : (
+                              <View style={styles.timelineNodeInner} />
+                            )}
+                          </View>
+                          {!isLast && (
+                            <View style={[styles.timelineLine, { backgroundColor: '#333', justifyContent: 'flex-start' }]}>
+                              <View style={{ height: `${file.progress}%`, width: '100%', backgroundColor: Colors.dark.primary }} />
+                            </View>
                           )}
                         </View>
-                        {!isLast && <View style={[styles.timelineLine, { backgroundColor: isCompleted ? Colors.dark.primary : '#333' }]} />}
-                      </View>
-                      
-                      <Pressable 
-                        onPress={() => handleFilePress(file)}
-                        style={[styles.timelineCard, isLocked && styles.timelineCardLocked, isCompleted && styles.timelineCardCompleted]}
-                      >
+                        
+                        <AnimatedPressable 
+                          onPress={() => handleFilePress(file)}
+                          style={[
+                            styles.timelineCard, 
+                            isLocked && styles.timelineCardLocked, 
+                            isCompleted && styles.timelineCardCompleted,
+                            blinkingModuleId === file.id && { borderColor: animatedBorderColor, backgroundColor: animatedBgColor }
+                          ]}
+                        >
                         <View style={styles.fileMain}>
                           <View style={styles.fileHeader}>
                             <ThemedText style={[styles.fileTitle, isLocked && styles.textLocked, isCompleted && styles.textCompleted]}>
                               {file.title}
                             </ThemedText>
-                            <View style={styles.fileRight}>
-                              {!isLocked && (
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#333', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4 }}>
-                                    <FontAwesome5 name="clock" size={10} color="#F59E0B" />
-                                    <ThemedText style={{ fontSize: 11, color: '#F59E0B', marginLeft: 5, fontFamily: 'VT323_400Regular' }}>{file.estimatedTime}m</ThemedText>
-                                  </View>
-                                  <ThemedText style={styles.fileXp}>+{file.xp} XP</ThemedText>
+                                <View style={styles.fileRight}>
+                                  {!isLocked && (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                      {file.progress > 0 && (
+                                        <ThemedText style={{ fontSize: 13, color: '#888', fontFamily: 'VT323_400Regular', marginTop: 2 }}>
+                                          {file.progress}%
+                                        </ThemedText>
+                                      )}
+                                      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#333', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4 }}>
+                                        <FontAwesome5 name="clock" size={10} color="#F59E0B" />
+                                        <ThemedText style={{ fontSize: 11, color: '#F59E0B', marginLeft: 5, fontFamily: 'VT323_400Regular' }}>{file.estimatedTime}m</ThemedText>
+                                      </View>
+                                      <ThemedText style={styles.fileXp}>+{file.xp} XP</ThemedText>
+                                    </View>
+                                  )}
                                 </View>
-                              )}
-                            </View>
                           </View>
                           <ThemedText style={[styles.fileDesc, isLocked && styles.textLocked]}>{file.desc}</ThemedText>
                         </View>
-                      </Pressable>
+                      </AnimatedPressable>
                     </View>
                   );
                 })}
@@ -300,24 +389,37 @@ export default function LearnScreen() {
                       const nodeColor = isLocked ? '#333' : '#EF4444';
 
                       return (
-                        <View key={file.id} style={styles.timelineItem}>
-                          <View style={styles.timelineVisual}>
-                            <View style={[styles.timelineNode, { borderColor: nodeColor, backgroundColor: '#111' }]}>
-                              {isCompleted ? (
-                                <View style={[styles.timelineNodeInner, { backgroundColor: Colors.dark.primary }]} />
-                              ) : isLocked ? (
-                                <FontAwesome5 name="lock" size={10} color="#555" />
-                              ) : (
-                                <View style={[styles.timelineNodeInner, { backgroundColor: '#F59E0B' }]} />
-                              )}
-                            </View>
-                            {!isLast && <View style={[styles.timelineLine, { backgroundColor: isCompleted ? Colors.dark.primary : '#333' }]} />}
+                      <View 
+                        key={file.id} 
+                        style={styles.timelineItem}
+                        onLayout={(e) => layouts.current[file.id] = e.nativeEvent.layout.y}
+                      >
+                        <View style={styles.timelineVisual}>
+                          <View style={[styles.timelineNode, { borderColor: nodeColor, backgroundColor: '#111' }]}>
+                            {isCompleted ? (
+                              <View style={[styles.timelineNodeInner, { backgroundColor: Colors.dark.primary }]} />
+                            ) : isLocked ? (
+                              <FontAwesome5 name="lock" size={10} color="#555" />
+                            ) : (
+                              <View style={[styles.timelineNodeInner, { backgroundColor: '#F59E0B' }]} />
+                            )}
                           </View>
-                          
-                          <Pressable 
-                            onPress={() => handleFilePress(file)}
-                            style={[styles.timelineCard, isLocked && styles.timelineCardLocked, isCompleted && { borderColor: Colors.dark.primary }]}
-                          >
+                          {!isLast && (
+                            <View style={[styles.timelineLine, { backgroundColor: '#333', justifyContent: 'flex-start' }]}>
+                              <View style={{ height: `${file.progress}%`, width: '100%', backgroundColor: Colors.dark.primary }} />
+                            </View>
+                          )}
+                        </View>
+                        
+                        <AnimatedPressable 
+                          onPress={() => handleFilePress(file)}
+                          style={[
+                            styles.timelineCard, 
+                            isLocked && styles.timelineCardLocked, 
+                            isCompleted && { borderColor: Colors.dark.primary },
+                            blinkingModuleId === file.id && { borderColor: animatedBorderColor, backgroundColor: animatedBgColor }
+                          ]}
+                        >
                             <View style={styles.fileMain}>
                               <View style={styles.fileHeader}>
                                 <ThemedText style={[styles.fileTitle, isLocked && styles.textLocked, isCompleted && { color: Colors.dark.primary }]}>
@@ -326,6 +428,11 @@ export default function LearnScreen() {
                                 <View style={styles.fileRight}>
                                   {!isLocked && (
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                      {file.progress > 0 && (
+                                        <ThemedText style={{ fontSize: 13, color: '#888', fontFamily: 'VT323_400Regular', marginTop: 2 }}>
+                                          {file.progress}%
+                                        </ThemedText>
+                                      )}
                                       <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#333', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 4 }}>
                                         <FontAwesome5 name="clock" size={10} color="#F59E0B" />
                                         <ThemedText style={{ fontSize: 11, color: '#F59E0B', marginLeft: 5, fontFamily: 'VT323_400Regular' }}>{file.estimatedTime}m</ThemedText>
@@ -337,7 +444,7 @@ export default function LearnScreen() {
                               </View>
                               <ThemedText style={[styles.fileDesc, isLocked && styles.textLocked]}>{file.desc}</ThemedText>
                             </View>
-                          </Pressable>
+                          </AnimatedPressable>
                         </View>
                       );
                     })}
