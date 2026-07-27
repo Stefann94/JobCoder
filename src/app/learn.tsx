@@ -36,7 +36,8 @@ export default function LearnScreen() {
   const navigation = useNavigation();
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('tabPress', (e) => {
+    // @ts-ignore - navigation types don't include tabPress by default
+    const unsubscribe = navigation.addListener('tabPress', (e: any) => {
       // e.preventDefault(); // If we wanted to stop the default tab switch, but we just want to reset state
       setCurrentDirId(null);
       scrollViewRef.current?.scrollTo({ y: 0, animated: false });
@@ -94,6 +95,23 @@ export default function LearnScreen() {
 
       if (modError) throw modError;
 
+      // Fetch user progress for modules
+      let completedModules: { [id: string]: number } = {};
+      if (user) {
+        const { data: progressData } = await supabase
+          .from('user_progress')
+          .select('module_progress')
+          .eq('user_id', user.id);
+          
+        if (progressData) {
+          progressData.forEach(p => {
+            if (p.module_progress) {
+              completedModules = { ...completedModules, ...p.module_progress };
+            }
+          });
+        }
+      }
+
       // Build the directory structure based on categories
       const builtDirectories: DirectoryItem[] = categoriesData.map((cat: any) => {
         const catModules = modulesData.filter((m: any) => m.category_id === cat.id);
@@ -110,7 +128,7 @@ export default function LearnScreen() {
             desc: m.description,
             type: m.type === 'theory' ? 'doc' : 'exec',
             xp: m.xp_reward,
-            progress: 0,
+            progress: completedModules[m.id] || 0,
             isLocked: false,
             tier: m.tier || 'core',
             estimatedTime: m.estimated_time || 15,

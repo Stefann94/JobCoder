@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, FlatList, Pressable, Dimensions, ActivityIndicator, Animated, BackHandler } from 'react-native';
+import { View, StyleSheet, FlatList, Pressable, Dimensions, ActivityIndicator, Animated, BackHandler, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
-import Markdown from 'react-native-markdown-display';
 import * as Haptics from 'expo-haptics';
 
 import { ThemedText } from '@/components/themed-text';
@@ -13,6 +12,36 @@ import { addXpToProfile } from '@/lib/api';
 import { useAuth } from '@/providers/AuthProvider';
 
 const { width } = Dimensions.get('window');
+
+type Block = {
+  type: string;
+  content: string;
+  language?: string;
+};
+
+const parseSlideContent = (text: string): Block[] => {
+  const blocks: Block[] = [];
+  const regex = /\[(TITLE|SUBTITLE|PARAGRAPH|ALERT|CODE-[a-z]+)\]([\s\S]*?)(?=\[(?:TITLE|SUBTITLE|PARAGRAPH|ALERT|CODE-[a-z]+)\]|$)/g;
+  
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    let type = match[1];
+    let content = match[2].trim();
+    let language = 'javascript';
+    
+    if (type.startsWith('CODE-')) {
+      language = type.split('-')[1];
+      type = 'CODE';
+      if (content.endsWith('[/CODE]')) {
+        content = content.substring(0, content.length - 7).trim();
+      }
+    }
+    
+    blocks.push({ type, content, language });
+  }
+  
+  return blocks;
+};
 
 type LessonModule = {
   id: string;
@@ -267,9 +296,49 @@ export default function LessonScreen() {
               ]}
             >
               <View style={styles.slideCard}>
-                <Markdown style={markdownStyles}>
-                  {item}
-                </Markdown>
+                <ScrollView 
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                >
+                  {parseSlideContent(item).map((block, i) => {
+                    if (block.type === 'TITLE') {
+                      return <ThemedText key={i} style={markdownStyles.heading1}>{block.content}</ThemedText>;
+                    }
+                    if (block.type === 'SUBTITLE') {
+                      return <ThemedText key={i} style={markdownStyles.heading2}>{block.content}</ThemedText>;
+                    }
+                    if (block.type === 'PARAGRAPH') {
+                      return <ThemedText key={i} style={markdownStyles.body}>{block.content}</ThemedText>;
+                    }
+                    if (block.type === 'CODE') {
+                      return (
+                        <View key={i} style={markdownStyles.code_block_wrapper}>
+                          <View style={markdownStyles.code_header}>
+                            <View style={markdownStyles.mac_buttons}>
+                              <View style={[markdownStyles.mac_btn, { backgroundColor: '#FF5F56' }]} />
+                              <View style={[markdownStyles.mac_btn, { backgroundColor: '#FFBD2E' }]} />
+                              <View style={[markdownStyles.mac_btn, { backgroundColor: '#27C93F' }]} />
+                            </View>
+                            <ThemedText style={markdownStyles.code_lang}>{block.language}</ThemedText>
+                          </View>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ padding: 15 }}>
+                            <ThemedText style={markdownStyles.code_text}>
+                              {block.content}
+                            </ThemedText>
+                          </ScrollView>
+                        </View>
+                      );
+                    }
+                    if (block.type === 'ALERT') {
+                      return (
+                        <View key={i} style={markdownStyles.blockquote}>
+                          <ThemedText style={{ color: Colors.dark.primary }}>{block.content}</ThemedText>
+                        </View>
+                      );
+                    }
+                    return null;
+                  })}
+                </ScrollView>
               </View>
             </Animated.View>
           );
@@ -343,6 +412,7 @@ const styles = StyleSheet.create({
   },
   slideContainer: {
     width: width,
+    height: '100%',
     paddingHorizontal: 20,
   },
   slideCard: {
@@ -399,60 +469,97 @@ const styles = StyleSheet.create({
 
 const markdownStyles = {
   body: {
-    color: '#DDD',
-    fontSize: 16,
-    lineHeight: 24,
+    color: '#E0E0E0',
+    fontSize: 17,
+    lineHeight: 26,
+    fontFamily: 'sans-serif',
   },
   heading1: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 32,
-    color: '#FFF',
-    marginBottom: 15,
+    fontSize: 34,
+    color: Colors.dark.primary,
+    marginBottom: 20,
     marginTop: 0,
+    textTransform: 'uppercase' as any,
+    letterSpacing: 1,
   },
   heading2: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 26,
-    color: Colors.dark.primary,
-    marginBottom: 10,
-    marginTop: 10,
+    fontSize: 28,
+    color: '#FFF',
+    marginBottom: 15,
+    marginTop: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(57, 255, 20, 0.2)',
+    paddingBottom: 5,
   },
   paragraph: {
     marginBottom: 15,
   },
-  code_block: {
-    backgroundColor: '#000',
+  code_block_wrapper: {
+    marginVertical: 15,
+    borderRadius: 8,
+    overflow: 'hidden' as any,
     borderWidth: 1,
     borderColor: '#333',
-    padding: 15,
-    borderRadius: 8,
+    backgroundColor: '#0F0F0F',
+  },
+  code_header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1A1A1A',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  mac_buttons: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  mac_btn: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  code_lang: {
     fontFamily: 'monospace',
-    color: Colors.dark.primary,
-    marginTop: 10,
-    marginBottom: 15,
+    color: '#888',
+    fontSize: 12,
+    textTransform: 'uppercase' as any,
+  },
+  code_text: {
+    fontFamily: 'monospace',
+    color: '#50FA7B', // Dracula Green
+    fontSize: 14,
+    lineHeight: 22,
   },
   code_inline: {
-    backgroundColor: '#222',
-    color: '#F59E0B',
-    paddingHorizontal: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    color: Colors.dark.primary,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
     fontFamily: 'monospace',
+    fontSize: 15,
   },
   strong: {
     color: '#FFF',
-    fontWeight: 'bold',
+    fontWeight: 'bold' as any,
   },
   blockquote: {
     backgroundColor: 'rgba(57, 255, 20, 0.05)',
     borderLeftWidth: 4,
     borderLeftColor: Colors.dark.primary,
     paddingHorizontal: 15,
-    paddingVertical: 10,
+    paddingVertical: 12,
     marginVertical: 15,
+    borderRadius: 4,
   },
   list_item: {
     marginBottom: 10,
+    flexDirection: 'row' as any,
   },
   bullet_list_icon: {
     color: Colors.dark.primary,
@@ -460,3 +567,4 @@ const markdownStyles = {
     marginRight: 10,
   }
 };
+

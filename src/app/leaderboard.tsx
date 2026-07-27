@@ -20,7 +20,8 @@ export default function LeaderboardScreen() {
   const navigation = useNavigation();
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('tabPress', () => {
+    // @ts-ignore - navigation types don't include tabPress by default
+    const unsubscribe = navigation.addListener('tabPress', (e: any) => {
       scrollViewRef.current?.scrollTo({ y: 0, animated: false });
     });
     return unsubscribe;

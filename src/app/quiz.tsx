@@ -224,8 +224,9 @@ export default function QuizScreen() {
         
         // Creștem progresul (cu maxim 20% per quiz, plafonat la 100)
         const newProgress = Math.min(100, currentProgress + Math.floor(correctPercentage / 5));
+        const currentCompleted = progress[categoryId]?.completed_questions || [];
         
-        await updateProgress(categoryId, newProgress, []);
+        await updateProgress(categoryId, newProgress, currentCompleted);
       }
       
       if (user && xpEarned > 0) {
