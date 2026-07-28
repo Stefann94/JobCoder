@@ -64,11 +64,14 @@ const SlideItem = ({ item, index, currentIndex, scrollX, isLastSlide, onComplete
     }
   }, [currentIndex, index]);
 
-  const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
-
   const rotateY = scrollX.interpolate({
-    inputRange,
-    outputRange: ['60deg', '0deg', '-60deg'],
+    inputRange: [
+      (index - 1) * width,
+      (index - 0.05) * width,
+      (index + 0.05) * width,
+      (index + 1) * width
+    ],
+    outputRange: ['60deg', '0deg', '0deg', '-60deg'],
     extrapolate: 'clamp',
   });
 
@@ -242,34 +245,38 @@ export default function LessonScreen() {
     }
   }, [showTutorial]);
 
-  useEffect(() => {
-    if (moduleId) {
-      isExitingRef.current = false;
-      setShowExitWarning(false);
-      setLoading(true);
-      setModule(null);
-      setSlides([]);
-      fetchModule();
-    }
-  }, [moduleId]);
+  useFocusEffect(
+    useCallback(() => {
+      if (moduleId) {
+        isExitingRef.current = false;
+        setShowExitWarning(false);
+        setLoading(true);
+        setModule(null);
+        setSlides([]);
+        fetchModule();
+      }
+    }, [moduleId])
+  );
 
   useEffect(() => {
     if (slides.length > 0 && module) {
-      const targetPercent = slides.length > 1 ? Math.round((currentIndex / (slides.length - 1)) * 100) : 100;
+      const currentSlidePercent = slides.length > 1 ? Math.round((currentIndex / (slides.length - 1)) * 100) : 100;
+      const historicalPercent = progress[module.category_id]?.module_progress?.[module.id] || 0;
+      const displayPercent = Math.max(currentSlidePercent, historicalPercent);
       
       Animated.timing(progressAnim, {
-        toValue: targetPercent,
+        toValue: displayPercent,
         duration: 300, 
         useNativeDriver: false,
       }).start();
 
       const timer = setTimeout(() => {
-        updateModuleProgress(module.category_id, module.id, targetPercent);
+        updateModuleProgress(module.category_id, module.id, currentSlidePercent);
       }, 350);
 
       return () => clearTimeout(timer);
     }
-  }, [currentIndex, slides, module]);
+  }, [currentIndex, slides, module, progress]);
 
   const fetchModule = async () => {
     try {
@@ -435,7 +442,9 @@ export default function LessonScreen() {
     );
   }
 
-  const progressPercent = slides.length > 1 ? Math.round((currentIndex / (slides.length - 1)) * 100) : 100;
+  const currentSlidePercent = slides.length > 1 ? Math.round((currentIndex / (slides.length - 1)) * 100) : 100;
+  const historicalPercent = progress[module.category_id]?.module_progress?.[module.id] || 0;
+  const displayPercent = Math.max(currentSlidePercent, historicalPercent);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -491,7 +500,7 @@ export default function LessonScreen() {
               ]} 
             />
           </View>
-          <ThemedText style={styles.progressText}>{progressPercent}%</ThemedText>
+          <ThemedText style={styles.progressText}>{displayPercent}%</ThemedText>
         </View>
       </View>
 

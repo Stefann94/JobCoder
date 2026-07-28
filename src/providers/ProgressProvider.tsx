@@ -90,6 +90,12 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     const categoryData = progress[categoryId] || { progress_percent: 0, completed_questions: [], module_progress: {} };
     const currentModuleProgress = categoryData.module_progress || {};
     
+    // Once a module reaches 100%, never downgrade its progress if the user re-reads it
+    const existingPercent = currentModuleProgress[moduleId] || 0;
+    if (existingPercent === 100 && percent < 100) {
+      return;
+    }
+    
     const newProgress = {
       ...progress,
       [categoryId]: {

@@ -330,11 +330,9 @@ export default function LearnScreen() {
                               <View style={styles.timelineNodeInner} />
                             )}
                           </View>
-                          {!isLast && (
-                            <View style={[styles.timelineLine, { backgroundColor: '#333', justifyContent: 'flex-end' }]}>
-                              <View style={{ height: `${file.progress}%`, width: '100%', backgroundColor: Colors.dark.primary }} />
-                            </View>
-                          )}
+                          <View style={[styles.timelineLine, { backgroundColor: '#333', justifyContent: 'flex-end' }]}>
+                            <View style={{ height: `${file.progress}%`, width: '100%', backgroundColor: Colors.dark.primary }} />
+                          </View>
                         </View>
                         
                         <AnimatedPressable 
@@ -404,11 +402,9 @@ export default function LearnScreen() {
                               <View style={[styles.timelineNodeInner, { backgroundColor: '#F59E0B' }]} />
                             )}
                           </View>
-                          {!isLast && (
-                            <View style={[styles.timelineLine, { backgroundColor: '#333', justifyContent: 'flex-end' }]}>
-                              <View style={{ height: `${file.progress}%`, width: '100%', backgroundColor: Colors.dark.primary }} />
-                            </View>
-                          )}
+                          <View style={[styles.timelineLine, { backgroundColor: '#333', justifyContent: 'flex-end' }]}>
+                            <View style={{ height: `${file.progress}%`, width: '100%', backgroundColor: Colors.dark.primary }} />
+                          </View>
                         </View>
                         
                         <AnimatedPressable 
