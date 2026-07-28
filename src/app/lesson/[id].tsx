@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, StyleSheet, FlatList, Pressable, Dimensions, ActivityIndicator, Animated, BackHandler, ScrollView, Modal, TouchableOpacity } from 'react-native';
 import { ScrollView as GHScrollView, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect, useNavigation, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -174,7 +174,7 @@ const SlideItem = ({ item, index, currentIndex, scrollX, isLastSlide, onComplete
                 justifyContent: 'center',
                 gap: 10,
               }}
-              onPress={onComplete}
+              onPress={() => onComplete()}
             >
               <FontAwesome5 name="check-circle" size={20} color="#000" solid />
               <ThemedText style={{ color: '#000', fontFamily: 'VT323_400Regular', fontSize: 24, letterSpacing: 1 }}>FINISH & RETURN</ThemedText>
@@ -204,7 +204,14 @@ export default function LessonScreen() {
   const [module, setModule] = useState<LessonModule | null>(null);
   const [slides, setSlides] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [startIndex, setStartIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  
+  const navigation = useNavigation();
+  
+  const [showExitWarning, setShowExitWarning] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const isExitingRef = useRef(false);
 
   const flatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -219,14 +226,12 @@ export default function LessonScreen() {
     if (showTutorial) {
       Animated.loop(
         Animated.sequence([
-          // Vertical swipe animation
           Animated.timing(tutorialY, { toValue: -80, duration: 800, useNativeDriver: true }),
           Animated.timing(tutorialOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
           Animated.timing(tutorialY, { toValue: 0, duration: 0, useNativeDriver: true }),
           Animated.timing(tutorialOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
           Animated.delay(300),
 
-          // Horizontal swipe animation
           Animated.timing(tutorialX, { toValue: -80, duration: 800, useNativeDriver: true }),
           Animated.timing(tutorialOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
           Animated.timing(tutorialX, { toValue: 0, duration: 0, useNativeDriver: true }),
@@ -239,11 +244,15 @@ export default function LessonScreen() {
 
   useEffect(() => {
     if (moduleId) {
+      isExitingRef.current = false;
+      setShowExitWarning(false);
+      setLoading(true);
+      setModule(null);
+      setSlides([]);
       fetchModule();
     }
   }, [moduleId]);
 
-  // Update animated progress bar when currentIndex changes
   useEffect(() => {
     if (slides.length > 0 && module) {
       const targetPercent = slides.length > 1 ? Math.round((currentIndex / (slides.length - 1)) * 100) : 100;
@@ -254,8 +263,11 @@ export default function LessonScreen() {
         useNativeDriver: false,
       }).start();
 
-      // Save live progress exactly as the current slide percentage (even if it goes down)
-      updateModuleProgress(module.category_id, module.id, targetPercent);
+      const timer = setTimeout(() => {
+        updateModuleProgress(module.category_id, module.id, targetPercent);
+      }, 350);
+
+      return () => clearTimeout(timer);
     }
   }, [currentIndex, slides, module]);
 
@@ -271,9 +283,19 @@ export default function LessonScreen() {
       
       setModule(data);
       if (data.content_markdown) {
-        // Split by --- delimiter for slides
         const splitSlides = data.content_markdown.split('---').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
         setSlides(splitSlides.length > 0 ? splitSlides : ['*No content found.*']);
+        
+        const percent = progress[data.category_id]?.module_progress?.[data.id] || 0;
+        const slidesCount = splitSlides.length > 0 ? splitSlides.length : 1;
+        let computedStartIndex = 0;
+        if (percent > 0 && percent < 100) {
+          computedStartIndex = Math.floor((percent / 100) * (slidesCount - 1));
+        }
+        
+        setStartIndex(computedStartIndex);
+        setCurrentIndex(computedStartIndex);
+        scrollX.setValue(computedStartIndex * width);
       } else {
         setSlides(['*Module is currently empty.*']);
       }
@@ -287,18 +309,18 @@ export default function LessonScreen() {
   const handleFinish = async () => {
     if (!module) return;
     
+    // Prevent beforeRemove from triggering the abort modal
+    isExitingRef.current = true;
+    
     try {
       const { data: profile } = await supabase.auth.getUser();
       if (profile?.user) {
-        // Prevent XP farming by checking if they already completed this module
         const wasAlreadyCompleted = progress[module.category_id]?.module_progress?.[module.id] === 100;
         
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         
-        // Mark as 100% just in case
         await updateModuleProgress(module.category_id, module.id, 100);
         
-        // Only award XP if it's the first time they finish this module
         if (!wasAlreadyCompleted) {
           await addXpToProfile(profile.user.id, module.xp_reward || 0);
           await refreshProfile();
@@ -308,32 +330,88 @@ export default function LessonScreen() {
       console.error('Error completing lesson', e);
     }
     
-    router.navigate({ pathname: '/learn', params: { returnToCategory: module.category_id, returnToModule: module.id } });
+    router.replace({ pathname: '/learn', params: { returnToCategory: module.category_id, returnToModule: module.id } });
   };
 
-  const onMomentumScrollEnd = (e: any) => {
-    const newIndex = Math.round(e.nativeEvent.contentOffset.x / width);
-    if (newIndex !== currentIndex) {
-      setCurrentIndex(newIndex);
-      Haptics.selectionAsync();
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<any> }) => {
+    if (viewableItems.length > 0) {
+      const newIndex = viewableItems[0].index;
+      if (newIndex !== null && newIndex !== undefined) {
+        setCurrentIndex((prev) => {
+          if (prev !== newIndex) {
+            Haptics.selectionAsync();
+            return newIndex;
+          }
+          return prev;
+        });
+      }
+    }
+  }).current;
+
+  const triggerAbortModal = () => {
+    if (isExitingRef.current) return;
+    
+    if (slides.length > 0 && currentIndex === slides.length - 1) {
+      handleFinish();
+      return;
+    }
+
+    setShowExitWarning(true);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleCancelExit = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowExitWarning(false);
+    });
+  };
+
+  const handleConfirmExit = () => {
+    setShowExitWarning(false);
+    isExitingRef.current = true;
+    
+    // Explicitly save the current progress right before exiting
+    // This ensures if they went backward, the lower progress is saved instantly
+    if (module && slides.length > 1) {
+      const targetPercent = Math.round((currentIndex / (slides.length - 1)) * 100);
+      updateModuleProgress(module.category_id, module.id, targetPercent);
+    }
+
+    if (module) {
+      router.replace({ pathname: '/learn', params: { returnToCategory: module.category_id, returnToModule: module.id } });
+    } else {
+      router.replace('/learn');
     }
   };
 
-  // Intercept hardware back button (Android / iOS gestures)
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        if (module) {
-          router.navigate({ pathname: '/learn', params: { returnToCategory: module.category_id, returnToModule: module.id } });
-        } else {
-          router.navigate('/learn');
+        if (!isExitingRef.current) {
+          if (slides.length > 0 && currentIndex === slides.length - 1) {
+            handleFinish();
+          } else {
+            triggerAbortModal();
+          }
         }
-        return true; // Return true stops default back behavior
+        return true; 
       };
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
-    }, [module, router])
+    }, [currentIndex, slides.length])
   );
 
   if (loading) {
@@ -361,16 +439,38 @@ export default function LessonScreen() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+    <Stack.Screen options={{ gestureEnabled: false, headerShown: false }} />
     <SafeAreaView style={styles.container}>
+      <Modal
+        transparent={true}
+        visible={showExitWarning}
+        animationType="none"
+        onRequestClose={handleCancelExit}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View style={[styles.modalContent, { opacity: fadeAnim }]}>
+            <View style={styles.modalHeader}>
+              <FontAwesome5 name="exclamation-triangle" size={24} color="#F59E0B" />
+              <ThemedText style={styles.modalTitle}>EXIT MODULE?</ThemedText>
+            </View>
+            <ThemedText style={styles.modalText}>
+              Are you sure you want to exit? Your progress will be automatically saved.
+            </ThemedText>
+            <View style={styles.modalActions}>
+              <Pressable style={[styles.modalBtn, styles.modalBtnCancel]} onPress={handleCancelExit}>
+                <ThemedText style={styles.modalBtnText}>NO, RETURN</ThemedText>
+              </Pressable>
+              <Pressable style={[styles.modalBtn, styles.modalBtnConfirm]} onPress={handleConfirmExit}>
+                <ThemedText style={[styles.modalBtnText, { color: '#EF4444' }]}>YES, EXIT</ThemedText>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
       <View style={styles.header}>
         <Pressable 
-          onPress={() => {
-            if (module) {
-              router.navigate({ pathname: '/learn', params: { returnToCategory: module.category_id, returnToModule: module.id } });
-            } else {
-              router.navigate('/learn');
-            }
-          }} 
+          onPress={triggerAbortModal} 
           style={styles.closeBtn}
         >
           <FontAwesome5 name="times" size={24} color="#888" />
@@ -400,13 +500,20 @@ export default function LessonScreen() {
       </View>
 
       <Animated.FlatList
+        key={moduleId}
         ref={flatListRef}
         data={slides}
         keyExtractor={(item, index) => `${moduleId}-${index}`}
         horizontal
-        pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={onMomentumScrollEnd}
+        initialScrollIndex={startIndex}
+        getItemLayout={(data, index) => ({ length: width, offset: width * index, index })}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        snapToInterval={width}
+        snapToAlignment="center"
+        decelerationRate="fast"
+        disableIntervalMomentum={true}
         scrollEventThrottle={16}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
@@ -453,8 +560,63 @@ export default function LessonScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#050505',
+    backgroundColor: '#0a0a0a',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#111',
+    borderWidth: 1,
+    borderColor: '#333',
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  modalTitle: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 28,
+    color: '#F59E0B',
+  },
+  modalText: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 20,
+    color: '#888',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  modalBtnCancel: {
+    backgroundColor: '#222',
+    borderColor: '#444',
+  },
+  modalBtnConfirm: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderColor: '#EF4444',
+  },
+  modalBtnText: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 18,
+    color: '#CCC',
   },
   header: {
     flexDirection: 'row',

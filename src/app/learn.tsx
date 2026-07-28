@@ -72,10 +72,8 @@ export default function LearnScreen() {
           blinkAnim.setValue(0);
           
           Animated.sequence([
-            Animated.timing(blinkAnim, { toValue: 1, duration: 300, useNativeDriver: false }),
-            Animated.timing(blinkAnim, { toValue: 0, duration: 300, useNativeDriver: false }),
-            Animated.timing(blinkAnim, { toValue: 1, duration: 300, useNativeDriver: false }),
-            Animated.timing(blinkAnim, { toValue: 0, duration: 300, useNativeDriver: false }),
+            Animated.timing(blinkAnim, { toValue: 1, duration: 250, useNativeDriver: false }),
+            Animated.timing(blinkAnim, { toValue: 0, duration: 250, useNativeDriver: false }),
           ]).start(() => setBlinkingModuleId(null));
         }
       }, 400); // Wait for render and layouts to populate
@@ -333,7 +331,7 @@ export default function LearnScreen() {
                             )}
                           </View>
                           {!isLast && (
-                            <View style={[styles.timelineLine, { backgroundColor: '#333', justifyContent: 'flex-start' }]}>
+                            <View style={[styles.timelineLine, { backgroundColor: '#333', justifyContent: 'flex-end' }]}>
                               <View style={{ height: `${file.progress}%`, width: '100%', backgroundColor: Colors.dark.primary }} />
                             </View>
                           )}
@@ -388,7 +386,7 @@ export default function LearnScreen() {
                       const isLast = index === arr.length - 1;
                       const isCompleted = file.progress === 100;
                       const isLocked = file.isLocked;
-                      const nodeColor = isLocked ? '#333' : '#EF4444';
+                      const nodeColor = isCompleted ? Colors.dark.primary : (isLocked ? '#333' : '#EF4444');
 
                       return (
                       <View 
@@ -397,9 +395,9 @@ export default function LearnScreen() {
                         onLayout={(e) => layouts.current[file.id] = e.nativeEvent.layout.y}
                       >
                         <View style={styles.timelineVisual}>
-                          <View style={[styles.timelineNode, { borderColor: nodeColor, backgroundColor: '#111' }]}>
+                          <View style={[styles.timelineNode, { borderColor: nodeColor, backgroundColor: isCompleted ? Colors.dark.primary : '#111' }]}>
                             {isCompleted ? (
-                              <View style={[styles.timelineNodeInner, { backgroundColor: Colors.dark.primary }]} />
+                              <FontAwesome5 name="check" size={10} color="#000" />
                             ) : isLocked ? (
                               <FontAwesome5 name="lock" size={10} color="#555" />
                             ) : (
@@ -407,7 +405,7 @@ export default function LearnScreen() {
                             )}
                           </View>
                           {!isLast && (
-                            <View style={[styles.timelineLine, { backgroundColor: '#333', justifyContent: 'flex-start' }]}>
+                            <View style={[styles.timelineLine, { backgroundColor: '#333', justifyContent: 'flex-end' }]}>
                               <View style={{ height: `${file.progress}%`, width: '100%', backgroundColor: Colors.dark.primary }} />
                             </View>
                           )}
