@@ -56,6 +56,9 @@ export interface UserProfile {
   avatar_url: string;
   xp?: number;
   level?: number;
+  last_daily_quest_at?: string;
+  last_boss_fight_at?: string;
+  boss_attempts?: number;
 }
 
 export interface UserProgress {
@@ -126,6 +129,42 @@ export async function fetchQuestionsByCategory(categoryId: string, level?: numbe
     explanation: q.explanation,
     difficulty: q.difficulty || 'medium',
     level: q.level || 1,
+  }));
+}
+
+// Fetch questions for Boss Fights (15 random questions from the category)
+export async function fetchBossQuestions(categoryId: string): Promise<Question[]> {
+  const { data, error } = await supabase
+    .from('questions')
+    .select('*')
+    .eq('category_id', categoryId);
+
+  if (error) {
+    console.error('Error fetching boss questions:', error);
+    return [];
+  }
+
+  let results = data || [];
+  
+  // Shuffle randomly and pick 15 questions
+  results = results.sort(() => 0.5 - Math.random()).slice(0, 15);
+
+  return results.map((q: any) => ({
+    id: q.id,
+    category_id: q.category_id,
+    title: q.question, 
+    options: Array.isArray(q.options) 
+      ? q.options.map((opt: any, idx: number) => {
+          const isString = typeof opt === 'string';
+          return {
+            id: isString ? idx.toString() : (opt.id || idx.toString()),
+            text: isString ? opt : (opt.text || ''),
+            isCorrect: idx === q.correct_answer
+          };
+        })
+      : [],
+    explanation: q.explanation,
+    difficulty: q.difficulty || 'Hard'
   }));
 }
 
@@ -201,14 +240,35 @@ export async function updateUserProfile(profile: Partial<UserProfile> & { id: st
   return data;
 }
 
+export function getXpRequiredForLevel(targetLevel: number): number {
+  if (targetLevel <= 1) return 0;
+  let totalXp = 0;
+  for (let lvl = 1; lvl < targetLevel; lvl++) {
+    totalXp += 100 + (lvl - 1) * 50;
+  }
+  return totalXp;
+}
+
+export function getLevelFromXp(xp: number): number {
+  let level = 1;
+  while (true) {
+    const xpForNext = getXpRequiredForLevel(level + 1);
+    if (xp >= xpForNext) {
+      level++;
+    } else {
+      break;
+    }
+  }
+  return level;
+}
+
 export async function addXpToProfile(userId: string, xpAmount: number): Promise<{ xp: number, level: number } | null> {
   const profile = await fetchUserProfile(userId);
   if (!profile) return null;
   
   const currentXp = profile.xp || 0;
   const newXp = currentXp + xpAmount;
-  // Formula de level: la fiecare 100 XP primești un level (ex: 250 XP = lvl 3)
-  const newLevel = Math.floor(newXp / 100) + 1;
+  const newLevel = getLevelFromXp(newXp);
 
   await updateUserProfile({
     id: userId,
@@ -307,3 +367,17 @@ export async function fetchDailyQuests(): Promise<DailyQuest[]> {
   if (error) { console.error('Error fetching daily quests:', error); return []; }
   return data || [];
 }
+
+export async function consumeBossFightAttempt(userId: string): Promise<boolean> {
+  const { data: profile } = await supabase.from('profiles').select('last_boss_fight_at, boss_attempts').eq('id', userId).single();
+  const todayStr = new Date().toISOString().split('T')[0];
+  let attempts = 0;
+  if (profile?.last_boss_fight_at === todayStr) {
+    attempts = profile?.boss_attempts || 0;
+  }
+  attempts += 1;
+  const { error } = await supabase.from('profiles').update({ last_boss_fight_at: todayStr, boss_attempts: attempts }).eq('id', userId);
+  if (error) { console.error('Error consuming boss fight attempt:', error); return false; }
+  return true;
+}
+

@@ -26,7 +26,7 @@ export default function QuizScreen() {
   const params = useLocalSearchParams();
   const categoryId = params.category as string;
 
-  const { user, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { progress, updateProgress, updateLevelProgress } = useProgress();
   const progressRef = useRef(progress);
   
@@ -240,21 +240,48 @@ export default function QuizScreen() {
     } else {
       // Finish Quiz
       setQuizCompleted(true);
-      if (user && categoryId !== 'mock' && categoryId !== 'daily_mix') {
+      if (user) {
         const correctPercentage = Math.round((score / quizQuestions.length) * 100);
-        const currentProgress = progress[categoryId]?.progress_percent || 0;
         
-        // Verificăm dacă trece nivelul (ex: minim 80% din întrebări corecte)
-        if (correctPercentage >= 80 && currentLevel <= 5) {
-          // Salvăm scorul real obținut în DB (ex: 85%), nu un 100 forțat
-          await updateLevelProgress(categoryId, currentLevel, correctPercentage);
-          setDidLevelUp(true);
+        if (categoryId === 'daily_mix') {
+          const todayDate = new Date().toISOString().split('T')[0];
+          // Verificăm să nu fi luat deja premiul azi (anti-cheat fallback)
+          if (correctPercentage >= 80 && profile?.last_daily_quest_at !== todayDate) {
+            setDidLevelUp(true); // Folosim animația de Level Up ca o celebrare pentru Quest
+            setXpEarned(150);
+            await updateUserProfile({ id: user.id, last_daily_quest_at: todayDate });
+            await addXpToProfile(user.id, 150);
+            await refreshProfile();
+          }
+        } else if (categoryId !== 'mock') {
+          const existingPercent = progress[categoryId]?.level_progress?.[currentLevel.toString()] || 0;
           
-          // Adăugăm XP fix per nivel finalizat
-          const levelXp = 30;
-          setXpEarned(levelXp);
-          await addXpToProfile(user.id, levelXp);
-          await refreshProfile();
+          // Verificăm dacă trece nivelul (ex: minim 80% din întrebări corecte)
+          if (correctPercentage >= 80 && currentLevel <= 5) {
+            // Setăm animația de "LEVEL UP!" doar dacă nu trecuse deja nivelul anterior
+            if (existingPercent < 80) {
+              setDidLevelUp(true);
+            }
+
+            // Salvăm scorul real obținut în DB
+            await updateLevelProgress(categoryId, currentLevel, correctPercentage);
+            
+            // Adăugăm XP doar pentru diferența de scor (ca să prevenim spam-ul pe același test)
+            const deltaPercent = correctPercentage - existingPercent;
+            
+            if (deltaPercent > 0) {
+              let maxLevelXp = 20;
+              if (currentLevel === 2) maxLevelXp = 30;
+              else if (currentLevel === 3) maxLevelXp = 50;
+              else if (currentLevel === 4) maxLevelXp = 75;
+              else if (currentLevel >= 5) maxLevelXp = 100;
+
+              const earnedXp = Math.round((deltaPercent / 100) * maxLevelXp);
+              setXpEarned(earnedXp);
+              await addXpToProfile(user.id, earnedXp);
+              await refreshProfile();
+            }
+          }
         }
       }
     }

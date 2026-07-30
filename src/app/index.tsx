@@ -93,31 +93,72 @@ export default function HomeScreen() {
                 </ThemedText>
               </View>
             </Pressable>
-            <Pressable>
-              <FontAwesome name="bell" size={22} color={Colors.dark.textSecondary} />
-            </Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.four }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: '#333' }}>
+                <FontAwesome5 name="star" solid size={10} color={Colors.dark.primary} style={{ marginRight: 6 }} />
+                <ThemedText style={{ fontFamily: 'VT323_400Regular', color: Colors.dark.primary, fontSize: 16 }}>
+                  LVL {profile?.level || 1}
+                </ThemedText>
+              </View>
+              <Pressable>
+                <FontAwesome name="bell" size={22} color={Colors.dark.textSecondary} />
+              </Pressable>
+            </View>
           </View>
 
           {/* Daily Quest Card */}
-          {quests.length > 0 && (
-            <View style={styles.questCard}>
-              <FontAwesome5 name="skull" size={100} color="#333333" style={styles.questWatermark} />
-              <View style={styles.questHeader}>
-                <FontAwesome name="warning" size={16} color={Colors.dark.warning} />
-                <ThemedText style={styles.questTitle}>{quests[0].title}</ThemedText>
+          {(() => {
+            const userLevel = profile?.level || 1;
+            const todayDate = new Date().toISOString().split('T')[0];
+            const isCompletedToday = profile?.last_daily_quest_at === todayDate;
+            const isLocked = userLevel < 3;
+            
+            return (
+              <View style={[styles.questCard, (isLocked || isCompletedToday) && { borderColor: '#333' }]}>
+                <FontAwesome5 
+                  name={isCompletedToday ? "check-circle" : (isLocked ? "lock" : "skull")} 
+                  size={100} 
+                  color="#222" 
+                  style={styles.questWatermark} 
+                />
+                
+                <View style={styles.questHeader}>
+                  <FontAwesome 
+                    name={isCompletedToday ? "check" : (isLocked ? "lock" : "warning")} 
+                    size={16} 
+                    color={isCompletedToday ? Colors.dark.primary : (isLocked ? "#FFF" : Colors.dark.warning)} 
+                  />
+                  <ThemedText style={[styles.questTitle, isCompletedToday && { color: Colors.dark.primary }]}>
+                    DAILY ARENA
+                  </ThemedText>
+                </View>
+                <ThemedText style={styles.questDescription}>
+                  {isCompletedToday 
+                    ? "You have already claimed today's reward! Come back tomorrow for a new challenge."
+                    : isLocked 
+                      ? "Reach Level 3 to unlock the Daily Arena. You must learn the fundamentals first!"
+                      : "Survive 10 random technical questions from all the concepts you have learned so far."}
+                </ThemedText>
+                
+                <View style={styles.questFooter}>
+                  <ThemedText style={styles.questReward}>
+                    Reward: {isCompletedToday ? "CLAIMED" : "+150 EXP"}
+                  </ThemedText>
+                  
+                  {!isCompletedToday && !isLocked && (
+                    <Pressable onPress={() => handleStartQuiz('daily_mix')} style={styles.questButton}>
+                      <ThemedText style={styles.questButtonText}>ENTER ARENA</ThemedText>
+                    </Pressable>
+                  )}
+                  {isLocked && (
+                    <View style={[styles.questButton, { backgroundColor: '#333' }]}>
+                      <ThemedText style={[styles.questButtonText, { color: '#888' }]}>LOCKED</ThemedText>
+                    </View>
+                  )}
+                </View>
               </View>
-              <ThemedText style={styles.questDescription}>
-                {quests[0].description}
-              </ThemedText>
-              
-              <View style={styles.questFooter}>
-                <ThemedText style={styles.questReward}>Reward: +{quests[0].xp_reward} EXP</ThemedText>
-                <Pressable onPress={() => handleStartQuiz('daily_mix')} style={styles.questButton}>
-                  <ThemedText style={styles.questButtonText}>ENTER ARENA</ThemedText>
-                </Pressable>
-              </View>
-            </View>
-          )}
+            );
+          })()}
 
           {/* Skill Trees Section */}
           <View style={styles.section}>
@@ -175,22 +216,46 @@ export default function HomeScreen() {
                 UPCOMING BOSS FIGHTS
               </ThemedText>
               
-              {bosses.map((boss) => (
-                <Pressable key={boss.id} onPress={() => handleStartQuiz(boss.category_id)}>
-                  {({ pressed }) => (
-                    <View style={[styles.bossCard, pressed && styles.pressed]}>
-                      <View style={styles.bossIconBox}>
-                        <ThemedText style={styles.bossIconText}>{boss.title.charAt(0)}</ThemedText>
+              {bosses.map((boss) => {
+                const userLevel = profile?.level || 1;
+                const isLocked = userLevel < 4;
+
+                const todayStr = new Date().toISOString().split('T')[0];
+                let attemptsLeft = 2;
+                if (profile?.last_boss_fight_at === todayStr) {
+                   attemptsLeft = 2 - (profile?.boss_attempts || 0);
+                }
+                if (attemptsLeft < 0) attemptsLeft = 0;
+
+                return (
+                  <Pressable key={boss.id} onPress={() => !isLocked && router.push({ pathname: '/boss/[id]', params: { id: boss.id } })}>
+                    {({ pressed }) => (
+                      <View style={[styles.bossCard, pressed && !isLocked && styles.pressed, isLocked && { opacity: 0.6, borderColor: '#333' }]}>
+                        <View style={[styles.bossIconBox, isLocked && { borderColor: '#555' }]}>
+                          <ThemedText style={[styles.bossIconText, isLocked && { color: '#555' }]}>
+                            {isLocked ? <FontAwesome name="lock" size={16} /> : boss.title.charAt(0)}
+                          </ThemedText>
+                        </View>
+                        <View style={styles.bossContent}>
+                          <ThemedText style={[styles.bossTitle, isLocked && { color: '#888' }]}>{boss.title}</ThemedText>
+                          <ThemedText style={styles.bossSubtitle}>
+                            {isLocked ? "Unlocks at Level 4" : boss.company_name}
+                          </ThemedText>
+                        </View>
+                        {!isLocked && (
+                          <View style={{ flexDirection: 'row', gap: 4, marginRight: 12 }}>
+                            <FontAwesome5 name="heart" solid={attemptsLeft > 0} size={14} color={attemptsLeft > 0 ? '#EF4444' : '#444'} />
+                            <FontAwesome5 name="heart" solid={attemptsLeft > 1} size={14} color={attemptsLeft > 1 ? '#EF4444' : '#444'} />
+                          </View>
+                        )}
+                        <ThemedText style={[styles.bossDangerText, isLocked && { color: '#555' }]}>
+                          {isLocked ? "LOCKED" : "DANGER"}
+                        </ThemedText>
                       </View>
-                      <View style={styles.bossContent}>
-                        <ThemedText style={styles.bossTitle}>{boss.title}</ThemedText>
-                        <ThemedText style={styles.bossSubtitle}>{boss.company_name}</ThemedText>
-                      </View>
-                      <ThemedText style={styles.bossDangerText}>DANGER</ThemedText>
-                    </View>
-                  )}
-                </Pressable>
-              ))}
+                    )}
+                  </Pressable>
+                );
+              })}
             </View>
           )}
 

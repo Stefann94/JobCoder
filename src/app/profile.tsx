@@ -9,7 +9,7 @@ import { GlobalLoading } from '@/components/global-loading';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 import { Colors } from '@/constants/theme';
-import { fetchUserProfile, updateUserProfile, uploadAvatarImage, UserProfile } from '@/lib/api';
+import { fetchUserProfile, updateUserProfile, uploadAvatarImage, UserProfile, getXpRequiredForLevel } from '@/lib/api';
 import HackerSelect from '@/components/hacker-select';
 import AvatarRenderer from '@/components/avatar-renderer';
 
@@ -27,10 +27,9 @@ const HACKER_ICONS = ['user-ninja', 'user-astronaut', 'user-secret', 'robot', 'g
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, refreshProfile } = useAuth();
+  const { user, profile, isAuthenticated, isLoading, refreshProfile } = useAuth();
 
   // Profile States
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -47,9 +46,11 @@ export default function ProfileScreen() {
   // Computed XP stats
   const currentXp = profile?.xp || 0;
   const currentLevel = profile?.level || 1;
-  const nextLevelXp = currentLevel * 100;
-  const xpProgressInLevel = currentXp % 100;
-  const progressPercent = xpProgressInLevel; // Since 1 level = 100 XP exactly
+  const targetXp = getXpRequiredForLevel(currentLevel + 1);
+  const baseXp = getXpRequiredForLevel(currentLevel);
+  const xpProgressInLevel = Math.max(0, currentXp - baseXp);
+  const levelXpRequirement = targetXp - baseXp;
+  const progressPercent = levelXpRequirement > 0 ? (xpProgressInLevel / levelXpRequirement) * 100 : 0;
 
   // Reset scroll position and edit mode every time this screen is focused (initially)
   useFocusEffect(
@@ -77,29 +78,23 @@ export default function ProfileScreen() {
   );
 
   useEffect(() => {
-    if (user) {
-      fetchUserProfile(user.id).then((data) => {
-        if (data) {
-          setProfile(data);
-          setEditForm(data);
-        } else {
-          setEditForm({
-            username: user.email?.split('@')[0] || 'Hacker',
-            title: 'Junior Dev',
-            main_language: 'JavaScript',
-            goal: '', daily_time: '', work_style: '', github_link: '', avatar_url: ''
-          });
-        }
+    if (profile) {
+      setEditForm(profile);
+    } else if (user) {
+      setEditForm({
+        username: user.email?.split('@')[0] || 'Hacker',
+        title: 'Junior Dev',
+        main_language: 'JavaScript',
+        goal: '', daily_time: '', work_style: '', github_link: '', avatar_url: ''
       });
     }
-  }, [user]);
+  }, [profile, user]);
 
   const handleSaveProfile = async () => {
     if (!user) return;
     setIsSaving(true);
     try {
       const newProfile = await updateUserProfile({ id: user.id, ...editForm });
-      setProfile(newProfile as UserProfile);
       await refreshProfile();
       setIsEditing(false);
     } catch (e: any) {
@@ -240,7 +235,7 @@ export default function ProfileScreen() {
                     <View style={[styles.statBox, { flex: 1 }]}>
                       <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
                         <Text style={[styles.statValue, { fontSize: 28 }]}>{currentXp}</Text>
-                        <Text style={[styles.statValue, { fontSize: 28, color: '#888' }]}> / {nextLevelXp}</Text>
+                        <Text style={[styles.statValue, { fontSize: 28, color: '#888' }]}> / {targetXp}</Text>
                       </View>
                       <Text style={[styles.statLabel, { fontSize: 12 }]}>XP</Text>
                       <View style={{ width: 100, height: 6, backgroundColor: '#333', marginTop: 10, overflow: 'hidden' }}>

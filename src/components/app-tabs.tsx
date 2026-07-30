@@ -14,7 +14,7 @@ export default function AppTabs({ state, descriptors, navigation }: BottomTabBar
   const currentRouteName = state.routes[state.index].name;
 
   // Ascundem tab bar-ul pe anumite ecrane unde vrem un flow full-screen (ex: Quiz)
-  if (currentRouteName === 'quiz' || currentRouteName === 'profile' || currentRouteName === 'lesson/[id]') {
+  if (currentRouteName === 'quiz' || currentRouteName === 'profile' || currentRouteName === 'lesson/[id]' || currentRouteName === 'boss/[id]') {
     return null;
   }
 
