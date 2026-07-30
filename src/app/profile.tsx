@@ -44,6 +44,13 @@ export default function ProfileScreen() {
 
   const scrollRef = useRef<ScrollView>(null);
 
+  // Computed XP stats
+  const currentXp = profile?.xp || 0;
+  const currentLevel = profile?.level || 1;
+  const nextLevelXp = currentLevel * 100;
+  const xpProgressInLevel = currentXp % 100;
+  const progressPercent = xpProgressInLevel; // Since 1 level = 100 XP exactly
+
   // Reset scroll position and edit mode every time this screen is focused (initially)
   useFocusEffect(
     useCallback(() => {
@@ -221,15 +228,24 @@ export default function ProfileScreen() {
                     </View>
                   )}
 
-                  <View style={[styles.statsRow, { paddingTop: 10 }]}>
-                    <View style={styles.statBox}>
-                      <Text style={[styles.statValue, { fontSize: 28 }]}>1</Text>
+                  <View style={[styles.statsRow, { paddingTop: 10, alignItems: 'center' }]}>
+                    <View style={[styles.statBox, { flex: 1 }]}>
+                      <Text style={[styles.statValue, { fontSize: 28 }]}>{currentLevel}</Text>
                       <Text style={[styles.statLabel, { fontSize: 12 }]}>LEVEL</Text>
+                      <View style={{ width: 100, height: 6, backgroundColor: '#333', marginTop: 10, overflow: 'hidden' }}>
+                        <View style={{ width: `${progressPercent}%`, height: '100%', backgroundColor: Colors.dark.primary }} />
+                      </View>
                     </View>
-                    <View style={[styles.statDivider, { height: 30 }]} />
-                    <View style={styles.statBox}>
-                      <Text style={[styles.statValue, { fontSize: 28 }]}>0</Text>
+                    <View style={[styles.statDivider, { height: 40 }]} />
+                    <View style={[styles.statBox, { flex: 1 }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                        <Text style={[styles.statValue, { fontSize: 28 }]}>{currentXp}</Text>
+                        <Text style={[styles.statValue, { fontSize: 28, color: '#888' }]}> / {nextLevelXp}</Text>
+                      </View>
                       <Text style={[styles.statLabel, { fontSize: 12 }]}>XP</Text>
+                      <View style={{ width: 100, height: 6, backgroundColor: '#333', marginTop: 10, overflow: 'hidden' }}>
+                        <View style={{ width: `${progressPercent}%`, height: '100%', backgroundColor: Colors.dark.primary }} />
+                      </View>
                     </View>
                   </View>
 

@@ -6,6 +6,7 @@ export interface CategoryProgress {
   progress_percent: number;
   completed_questions: string[];
   module_progress?: Record<string, number>;
+  level_progress?: Record<string, number>;
 }
 
 export type LocalProgress = Record<string, CategoryProgress>;
@@ -14,6 +15,7 @@ interface ProgressContextType {
   progress: LocalProgress;
   updateProgress: (categoryId: string, percent: number, completedQuestions: string[]) => Promise<void>;
   updateModuleProgress: (categoryId: string, moduleId: string, percent: number) => Promise<void>;
+  updateLevelProgress: (categoryId: string, level: number, percent: number) => Promise<void>;
   resetProgress: () => Promise<void>;
   isLoadingProgress: boolean;
 }
@@ -22,6 +24,7 @@ const ProgressContext = createContext<ProgressContextType>({
   progress: {},
   updateProgress: async () => {},
   updateModuleProgress: async () => {},
+  updateLevelProgress: async () => {},
   resetProgress: async () => {},
   isLoadingProgress: true,
 });
@@ -41,6 +44,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         progress_percent: p.progress_percent,
         completed_questions: p.completed_questions || [],
         module_progress: p.module_progress || {},
+        level_progress: p.level_progress || {},
       };
     });
     return local;
@@ -71,7 +75,8 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
   const updateProgress = async (categoryId: string, percent: number, completedQuestions: string[]) => {
     // Actualizăm starea din memorie pentru UI rapid
-    const newProgress = { ...progress, [categoryId]: { progress_percent: percent, completed_questions: completedQuestions } };
+    const categoryData = progress[categoryId] || { progress_percent: 0, completed_questions: [], module_progress: {}, level_progress: {} };
+    const newProgress = { ...progress, [categoryId]: { ...categoryData, progress_percent: percent, completed_questions: completedQuestions } };
     setProgress(newProgress);
 
     if (isAuthenticated && user) {
@@ -81,7 +86,8 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         category_id: categoryId,
         progress_percent: percent,
         completed_questions: completedQuestions,
-        module_progress: progress[categoryId]?.module_progress || {},
+        module_progress: categoryData.module_progress || {},
+        level_progress: categoryData.level_progress || {},
       });
     }
   };
@@ -116,6 +122,41 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         progress_percent: categoryData.progress_percent,
         completed_questions: categoryData.completed_questions,
         module_progress: newProgress[categoryId].module_progress,
+        level_progress: categoryData.level_progress || {},
+      });
+    }
+  };
+
+  const updateLevelProgress = async (categoryId: string, level: number, percent: number) => {
+    const categoryData = progress[categoryId] || { progress_percent: 0, completed_questions: [], module_progress: {}, level_progress: {} };
+    const currentLevelProgress = categoryData.level_progress || {};
+    
+    const existingPercent = currentLevelProgress[level.toString()] || 0;
+    if (existingPercent >= percent) {
+      return; // Never downgrade best score
+    }
+    
+    const newProgress = {
+      ...progress,
+      [categoryId]: {
+        ...categoryData,
+        level_progress: {
+          ...currentLevelProgress,
+          [level.toString()]: percent
+        }
+      }
+    };
+    
+    setProgress(newProgress);
+
+    if (isAuthenticated && user) {
+      await updateUserProgress({
+        user_id: user.id,
+        category_id: categoryId,
+        progress_percent: categoryData.progress_percent,
+        completed_questions: categoryData.completed_questions,
+        module_progress: categoryData.module_progress || {},
+        level_progress: newProgress[categoryId].level_progress,
       });
     }
   };
@@ -125,7 +166,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ProgressContext.Provider value={{ progress, updateProgress, updateModuleProgress, resetProgress, isLoadingProgress }}>
+    <ProgressContext.Provider value={{ progress, updateProgress, updateModuleProgress, updateLevelProgress, resetProgress, isLoadingProgress }}>
       {children}
     </ProgressContext.Provider>
   );

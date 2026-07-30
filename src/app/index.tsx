@@ -130,8 +130,16 @@ export default function HomeScreen() {
                 <View key={groupName} style={{ marginBottom: Spacing.four, gap: Spacing.three }}>
                   <ThemedText style={styles.sectionSubtitle}>{groupName.toUpperCase()}</ThemedText>
                   {groupCats.map(category => {
-                    const catProgress = progress[category.id]?.progress_percent || 0;
-                    const catLevel = Math.floor(catProgress / 20) + 1; // 1 level per 20% progress
+                    const levelProg = progress[category.id]?.level_progress || {};
+                    let computedLevel = 1;
+                    while (levelProg[computedLevel.toString()] >= 80) {
+                      computedLevel++;
+                    }
+                    if (computedLevel > 5) computedLevel = 5; // Max level 5
+                    
+                    const catLevel = computedLevel;
+                    // Calculate visual progress based on completed levels (each level is 20%)
+                    const catProgress = (computedLevel - 1) * 20 + (levelProg[computedLevel.toString()] || 0) * 0.2;
                     
                     return (
                       <Pressable key={category.id} onPress={() => handleStartQuiz(category.id)}>
@@ -143,7 +151,7 @@ export default function HomeScreen() {
                             <View style={styles.skillContent}>
                               <View style={styles.skillHeaderRow}>
                                 <ThemedText style={styles.skillTitle}>{category.title}</ThemedText>
-                                <ThemedText style={styles.skillLevel}>Lvl {catLevel}</ThemedText>
+                                <ThemedText style={styles.skillLevel}>Lvl {catLevel}/5</ThemedText>
                               </View>
                               <View style={styles.progressTrack}>
                                 <View style={[styles.progressFill, { width: `${catProgress}%` }]} />

@@ -26,8 +26,13 @@ export default function QuizScreen() {
   const params = useLocalSearchParams();
   const categoryId = params.category as string;
 
-  const { user } = useAuth();
-  const { progress, updateProgress } = useProgress();
+  const { user, refreshProfile } = useAuth();
+  const { progress, updateProgress, updateLevelProgress } = useProgress();
+  const progressRef = useRef(progress);
+  
+  useEffect(() => {
+    progressRef.current = progress;
+  }, [progress]);
   const [categories, setCategories] = useState<Category[]>([]);
 
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
@@ -37,6 +42,8 @@ export default function QuizScreen() {
   const [score, setScore] = useState(0);
   const [quizCompleted, setQuizCompleted] = useState(false);
   const [xpEarned, setXpEarned] = useState(0);
+  const [currentLevel, setCurrentLevel] = useState(1);
+  const [didLevelUp, setDidLevelUp] = useState(false);
 
   // Exit Modal States
   const [showExitWarning, setShowExitWarning] = useState(false);
@@ -48,6 +55,7 @@ export default function QuizScreen() {
   const [showExplanationModal, setShowExplanationModal] = useState(false);
   const [explFadeAnim] = useState(new Animated.Value(0));
   const [hasViewedQuestion, setHasViewedQuestion] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
 
   const triggerAbortModal = () => {
     if (quizCompleted || quizQuestions.length === 0 || isExitingRef.current) return;
@@ -138,12 +146,23 @@ export default function QuizScreen() {
         
         let fetchedQs;
         if (categoryId === 'daily_mix') {
-          const learnedCategoryIds = Object.entries(progress)
+          const learnedCategoryIds = Object.entries(progressRef.current)
             .filter(([key, val]) => val.progress_percent > 0)
             .map(([key]) => key);
           fetchedQs = await fetchDailyMixQuestions(learnedCategoryIds);
-        } else {
+        } else if (categoryId === 'mock') {
           fetchedQs = await fetchQuestionsByCategory(categoryId);
+        } else {
+          // Calculăm nivelul curent pentru categorie
+          const catProgress = progressRef.current[categoryId]?.level_progress || {};
+          let computedLevel = 1;
+          while (catProgress[computedLevel.toString()] >= 80) {
+            computedLevel++;
+          }
+          if (computedLevel > 5) computedLevel = 5;
+          setCurrentLevel(computedLevel);
+          
+          fetchedQs = await fetchQuestionsByCategory(categoryId, computedLevel);
         }
         
         if (!isActive) return;
@@ -166,13 +185,16 @@ export default function QuizScreen() {
 
     if (isCorrect) {
       setScore((prev) => prev + 1);
-      setXpEarned((prev) => prev + 15); // 15 XP per correct answer
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      const positiveFeedbacks = ['SPOT ON!', 'VALIDATED', 'NAILED IT', 'SUCCESS', 'EXACT MATCH', 'AWESOME!', 'PERFECT!', 'CORRECT!', 'BRILLIANT!', 'WELL DONE!'];
+      setFeedbackText(positiveFeedbacks[Math.floor(Math.random() * positiveFeedbacks.length)]);
     } else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       setTimeout(() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       }, 150);
+      const negativeFeedbacks = ['MISSED IT', 'INVALID', 'NEEDS WORK', 'FAILED', 'WRONG ANSWER', 'NOT QUITE', 'TRY AGAIN', 'INCORRECT', 'NOPE!'];
+      setFeedbackText(negativeFeedbacks[Math.floor(Math.random() * negativeFeedbacks.length)]);
     }
     
     setShowExplanationModal(true);
@@ -219,18 +241,21 @@ export default function QuizScreen() {
       // Finish Quiz
       setQuizCompleted(true);
       if (user && categoryId !== 'mock' && categoryId !== 'daily_mix') {
-        const correctPercentage = (score / quizQuestions.length) * 100;
+        const correctPercentage = Math.round((score / quizQuestions.length) * 100);
         const currentProgress = progress[categoryId]?.progress_percent || 0;
         
-        // Creștem progresul (cu maxim 20% per quiz, plafonat la 100)
-        const newProgress = Math.min(100, currentProgress + Math.floor(correctPercentage / 5));
-        const currentCompleted = progress[categoryId]?.completed_questions || [];
-        
-        await updateProgress(categoryId, newProgress, currentCompleted);
-      }
-      
-      if (user && xpEarned > 0) {
-        await addXpToProfile(user.id, xpEarned);
+        // Verificăm dacă trece nivelul (ex: minim 80% din întrebări corecte)
+        if (correctPercentage >= 80 && currentLevel <= 5) {
+          // Salvăm scorul real obținut în DB (ex: 85%), nu un 100 forțat
+          await updateLevelProgress(categoryId, currentLevel, correctPercentage);
+          setDidLevelUp(true);
+          
+          // Adăugăm XP fix per nivel finalizat
+          const levelXp = 30;
+          setXpEarned(levelXp);
+          await addXpToProfile(user.id, levelXp);
+          await refreshProfile();
+        }
       }
     }
   };
@@ -240,10 +265,12 @@ export default function QuizScreen() {
   };
 
   const getRankBadge = (scorePercentage: number) => {
-    if (scorePercentage >= 90) return { title: 'Lead Architect 👑', color: '#10B981', desc: 'Flawless interview! You are ready to lead teams.' };
-    if (scorePercentage >= 70) return { title: 'Senior Developer 🚀', color: '#3B82F6', desc: 'Excellent performance. Recruiters will fight for you!' };
-    if (scorePercentage >= 50) return { title: 'Mid-Level Engineer ⚙️', color: '#F59E0B', desc: 'Good foundations. A bit more polish and you are golden.' };
-    return { title: 'Junior Intern 📝', color: '#EC4899', desc: 'Keep practicing! Review explanations to level up.' };
+    if (scorePercentage >= 100) return { title: 'God Tier Architect', icon: 'crown', color: '#8B5CF6', desc: 'Flawless execution! You are writing the documentation now.' };
+    if (scorePercentage >= 70) return { title: 'Senior Developer', icon: 'rocket', color: '#10B981', desc: 'Excellent performance! Recruiters are already messaging you.' };
+    if (scorePercentage >= 50) return { title: 'Mid-Level Engineer', icon: 'cogs', color: '#F59E0B', desc: 'Solid foundation. A bit more polish and you will master this.' };
+    if (scorePercentage >= 40) return { title: 'Junior Developer', icon: 'laptop-code', color: '#3B82F6', desc: 'You are getting there! Keep studying the fundamentals.' };
+    if (scorePercentage >= 20) return { title: 'Intern', icon: 'coffee', color: '#EC4899', desc: 'Everyone starts somewhere. Review the explanations and try again.' };
+    return { title: 'Lost Tourist', icon: 'skull', color: '#EF4444', desc: 'Did you even read the documentation? Do not give up!' };
   };
 
   if (quizQuestions.length === 0) {
@@ -262,39 +289,67 @@ export default function QuizScreen() {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
-          <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.scoreFullScreen}>
             
-            <View style={styles.scoreContainer}>
-              <ThemedText style={styles.trophyIcon}>🏆</ThemedText>
-              <ThemedText type="title">Interview Completed!</ThemedText>
-              
-              <View style={styles.scoreWidget}>
-                <ThemedText style={styles.bigScore}>{score} / {quizQuestions.length}</ThemedText>
-                <ThemedText type="small" style={styles.scoreSubtitle}>CORRECT ANSWERS</ThemedText>
+            <View style={styles.headerGroup}>
+              {didLevelUp ? (
+                <>
+                  <FontAwesome5 name="star" size={56} color={Colors.dark.primary} solid />
+                  <ThemedText style={[styles.completionTitle, { color: Colors.dark.primary }]}>LEVEL UP!</ThemedText>
+                  <ThemedText style={styles.scoreSubtitle}>{currentCategory?.title.toUpperCase()} - LEVEL {currentLevel} COMPLETED</ThemedText>
+                </>
+              ) : (
+                <>
+                  <FontAwesome5 
+                    name={scorePercentage >= 80 ? "trophy" : "skull"} 
+                    size={56} 
+                    color={scorePercentage >= 80 ? "#F59E0B" : "#EF4444"} 
+                  />
+                  <ThemedText style={styles.completionTitle}>
+                    {scorePercentage >= 80 ? "INTERVIEW COMPLETED" : "INTERVIEW FAILED"}
+                  </ThemedText>
+                </>
+              )}
+            </View>
+            
+            <View style={styles.scoreWidget}>
+              <View style={styles.scoreRow}>
+                <ThemedText style={styles.bigScore}>{score}</ThemedText>
+                <ThemedText style={styles.bigScoreDivider}>/</ThemedText>
+                <ThemedText style={styles.bigScore}>{quizQuestions.length}</ThemedText>
               </View>
+              <ThemedText style={styles.scoreSubtitle}>CORRECT ANSWERS</ThemedText>
+            </View>
 
+            {!didLevelUp && (
               <ThemedView type="backgroundElement" style={styles.badgeCard}>
-                <ThemedText type="smallBold" style={styles.badgeTag}>YOUR INTERVIEW RANK</ThemedText>
-                <ThemedText type="subtitle" style={[styles.badgeTitle, { color: badge.color }]}>
-                  {badge.title}
-                </ThemedText>
-                <ThemedText type="small" style={styles.badgeDesc}>
+                <ThemedText style={styles.badgeTag}>YOUR INTERVIEW RANK</ThemedText>
+                <View style={styles.badgeTitleRow}>
+                  <ThemedText style={[styles.badgeTitle, { color: badge.color }]}>
+                    {badge.title}
+                  </ThemedText>
+                  <FontAwesome5 name={badge.icon} size={24} color={badge.color} />
+                </View>
+                <ThemedText style={styles.badgeDesc}>
                   {badge.desc}
                 </ThemedText>
               </ThemedView>
+            )}
 
+            <View style={styles.footerGroup}>
               <View style={styles.xpCard}>
-                <ThemedText style={styles.xpText}>✨ +{xpEarned} XP Earned</ThemedText>
+                <FontAwesome5 name="bolt" size={16} color="#F59E0B" />
+                <ThemedText style={styles.xpText}>+{xpEarned} XP EARNED</ThemedText>
               </View>
 
               <Pressable style={styles.actionButton} onPress={handleFinish}>
-                <ThemedText type="smallBold" style={styles.actionButtonText}>
-                  Back to Dashboard
+                <ThemedText style={styles.actionButtonText}>
+                  BACK TO DASHBOARD
                 </ThemedText>
               </Pressable>
             </View>
 
-          </ScrollView>
+          </View>
         </SafeAreaView>
       </ThemedView>
     );
@@ -345,11 +400,13 @@ export default function QuizScreen() {
           <View style={styles.modalOverlay}>
             <Animated.View style={[styles.modalContent, { opacity: explFadeAnim }]}>
               <View style={styles.explanationHeader}>
-                <ThemedText style={styles.explanationEmoji}>
-                  {currentQuestion.options.find((o) => o.id === selectedOptionId)?.isCorrect ? '🎉' : '❌'}
-                </ThemedText>
-                <ThemedText type="smallBold" style={styles.explanationTitle}>
-                  {currentQuestion.options.find((o) => o.id === selectedOptionId)?.isCorrect ? 'Correct!' : 'Incorrect'}
+                {currentQuestion.options.find((o) => o.id === selectedOptionId)?.isCorrect ? (
+                  <FontAwesome5 name="check-circle" solid size={28} color={Colors.dark.primary} />
+                ) : (
+                  <FontAwesome5 name="bug" size={28} color="#EF4444" />
+                )}
+                <ThemedText type="smallBold" style={[styles.explanationTitle, { color: currentQuestion.options.find((o) => o.id === selectedOptionId)?.isCorrect ? Colors.dark.primary : '#EF4444' }]}>
+                  {feedbackText}
                 </ThemedText>
               </View>
               <ThemedText style={styles.explanationBodyModal}>
@@ -357,10 +414,10 @@ export default function QuizScreen() {
               </ThemedText>
               <View style={styles.modalActions}>
                 <Pressable style={[styles.modalBtn, styles.modalBtnCancel]} onPress={handleViewQuestion}>
-                  <ThemedText style={styles.modalBtnText}>VIEW QUESTION</ThemedText>
+                  <ThemedText style={styles.modalBtnText} adjustsFontSizeToFit numberOfLines={1}>VIEW QUESTION</ThemedText>
                 </Pressable>
                 <Pressable style={[styles.modalBtn, styles.modalBtnNext]} onPress={handleNext}>
-                  <ThemedText style={[styles.modalBtnText, { color: Colors.dark.primary }]}>NEXT QUESTION</ThemedText>
+                  <ThemedText style={[styles.modalBtnText, { color: Colors.dark.primary }]} adjustsFontSizeToFit numberOfLines={1}>NEXT QUESTION</ThemedText>
                 </Pressable>
               </View>
             </Animated.View>
@@ -498,6 +555,7 @@ const styles = StyleSheet.create({
   modalBtn: {
     flex: 1,
     paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -632,9 +690,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: Spacing.two,
   },
-  explanationEmoji: {
-    fontSize: 24,
-  },
+
   explanationTitle: {
     fontFamily: 'VT323_400Regular',
     fontSize: 28,
@@ -667,29 +723,54 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   // Scoreboard styling
-  scoreContainer: {
+  scoreFullScreen: {
+    flex: 1,
+    padding: Spacing.four,
+    justifyContent: 'space-evenly',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.four,
-    paddingVertical: Spacing.five,
+    width: '100%',
+    maxWidth: 400,
+    alignSelf: 'center',
   },
-  trophyIcon: {
-    fontSize: 72,
+  headerGroup: {
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  completionTitle: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 42,
+    color: '#FFF',
+    textAlign: 'center',
+    lineHeight: 44,
   },
   scoreWidget: {
     alignItems: 'center',
     gap: Spacing.one,
   },
+  scoreRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    gap: Spacing.three,
+  },
   bigScore: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 64,
+    fontSize: 76,
+    lineHeight: 84,
     color: Colors.dark.primary,
+  },
+  bigScoreDivider: {
+    fontFamily: 'VT323_400Regular',
+    fontSize: 64,
+    lineHeight: 74,
+    color: '#666',
   },
   scoreSubtitle: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 16,
+    fontSize: 18,
     color: '#888',
-    letterSpacing: 2,
+    letterSpacing: 3,
+    textAlign: 'center',
   },
   badgeCard: {
     alignSelf: 'stretch',
@@ -698,51 +779,71 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     borderWidth: 1,
     borderColor: '#333',
-    backgroundColor: '#111',
+    backgroundColor: '#0a0a0a',
+    borderRadius: 8,
   },
   badgeTag: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
     letterSpacing: 2,
   },
+  badgeTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.three,
+  },
   badgeTitle: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 24,
+    fontSize: 28,
+    textAlign: 'center',
   },
   badgeDesc: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 16,
+    fontSize: 18,
     textAlign: 'center',
     color: '#AAA',
-    lineHeight: 22,
+    lineHeight: 24,
+  },
+  footerGroup: {
+    width: '100%',
+    alignItems: 'center',
+    gap: Spacing.four,
   },
   xpCard: {
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    backgroundColor: 'rgba(245, 158, 11, 0.05)',
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.four,
     borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.4)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    borderRadius: 4,
   },
   xpText: {
     fontFamily: 'VT323_400Regular',
     color: '#F59E0B',
-    fontSize: 18,
+    fontSize: 22,
+    letterSpacing: 2,
   },
   actionButton: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: 'rgba(57, 255, 20, 0.05)',
     paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.six,
+    paddingHorizontal: Spacing.five,
     borderWidth: 1,
     borderColor: Colors.dark.primary,
     alignSelf: 'stretch',
     alignItems: 'center',
+    borderRadius: 4,
   },
   actionButtonText: {
     fontFamily: 'VT323_400Regular',
-    fontSize: 20,
+    fontSize: 22,
     color: Colors.dark.primary,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 2,
+    textAlign: 'center',
   },
 });

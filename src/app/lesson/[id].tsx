@@ -215,6 +215,7 @@ export default function LessonScreen() {
   const [showExitWarning, setShowExitWarning] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const isExitingRef = useRef(false);
+  const initialProgressRef = useRef<number>(0);
 
   const flatListRef = useRef<FlatList>(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -294,6 +295,7 @@ export default function LessonScreen() {
         setSlides(splitSlides.length > 0 ? splitSlides : ['*No content found.*']);
         
         const percent = progress[data.category_id]?.module_progress?.[data.id] || 0;
+        initialProgressRef.current = percent;
         const slidesCount = splitSlides.length > 0 ? splitSlides.length : 1;
         let computedStartIndex = 0;
         if (percent > 0 && percent < 100) {
@@ -322,7 +324,7 @@ export default function LessonScreen() {
     try {
       const { data: profile } = await supabase.auth.getUser();
       if (profile?.user) {
-        const wasAlreadyCompleted = progress[module.category_id]?.module_progress?.[module.id] === 100;
+        const wasAlreadyCompleted = initialProgressRef.current === 100;
         
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         

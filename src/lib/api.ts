@@ -22,6 +22,7 @@ export interface Question {
   options: AnswerOption[];
   explanation: string;
   difficulty: string;
+  level?: number;
 }
 
 export interface BossFight {
@@ -64,6 +65,7 @@ export interface UserProgress {
   completed_questions: string[];
   progress_percent: number;
   module_progress?: Record<string, number>;
+  level_progress?: Record<string, number>;
   updated_at?: string;
 }
 
@@ -82,11 +84,14 @@ export async function fetchCategories(): Promise<Category[]> {
 }
 
 // Funcție ultra-eficientă pentru a lua Întrebările pentru o Categorie
-export async function fetchQuestionsByCategory(categoryId: string): Promise<Question[]> {
+export async function fetchQuestionsByCategory(categoryId: string, level?: number): Promise<Question[]> {
   let query = supabase.from('questions').select('*');
   
   if (categoryId !== 'mock') {
     query = query.eq('category_id', categoryId);
+    if (level) {
+      query = query.eq('level', level);
+    }
   }
 
   const { data, error } = await query;
@@ -109,14 +114,18 @@ export async function fetchQuestionsByCategory(categoryId: string): Promise<Ques
     category_id: q.category_id,
     title: q.question, // DB column e 'question', UI folosește 'title'
     options: Array.isArray(q.options) 
-      ? q.options.map((optText: string, idx: number) => ({
-          id: idx.toString(),
-          text: optText,
-          isCorrect: idx === q.correct_answer
-        }))
+      ? q.options.map((opt: any, idx: number) => {
+          const isString = typeof opt === 'string';
+          return {
+            id: isString ? idx.toString() : (opt.id || idx.toString()),
+            text: isString ? opt : (opt.text || ''),
+            isCorrect: idx === q.correct_answer
+          };
+        })
       : [],
     explanation: q.explanation,
     difficulty: q.difficulty || 'medium',
+    level: q.level || 1,
   }));
 }
 
@@ -148,11 +157,14 @@ export async function fetchDailyMixQuestions(learnedCategoryIds: string[]): Prom
     category_id: q.category_id,
     title: q.question, 
     options: Array.isArray(q.options) 
-      ? q.options.map((optText: string, idx: number) => ({
-          id: idx.toString(),
-          text: optText,
-          isCorrect: idx === q.correct_answer
-        }))
+      ? q.options.map((opt: any, idx: number) => {
+          const isString = typeof opt === 'string';
+          return {
+            id: isString ? idx.toString() : (opt.id || idx.toString()),
+            text: isString ? opt : (opt.text || ''),
+            isCorrect: idx === q.correct_answer
+          };
+        })
       : [],
     explanation: q.explanation,
     difficulty: q.difficulty || 'Medium'
